@@ -1,2 +1,1 @@
-# chrdsuimanager
-Charybdis Monitoring System (UIManager)
+# Charybdis Monitoring System UIManager

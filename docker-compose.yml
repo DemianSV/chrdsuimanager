@@ -1,0 +1,33 @@
+services:
+  chrdsuimanager:
+    image: chrdsuimanager:latest
+    ports:
+      - 127.0.0.1:7007:7007
+    container_name: chrdsuimanager
+    restart: always
+    environment:
+    - CHRDS_UIMANAGER_MODULEID=623a57c2-3df5-4287-ada5-82f7e4a0b5db
+    - CHRDS_UIMANAGER_SPACEID ID=17f0bd20-41cf-4801-a481-ff721a41fa93
+    - CHRDS_UIMANAGER_DATAMANAGERURL=http://127.0.0.1:6006
+    - CHRDS_HTTP_HOST=0.0.0.0
+    - CHRDS_HTTP_PORT=7007
+    - CHRDS_HTTP_READTIMEOUT=30
+    - CHRDS_HTTP_WRITETIMEOUT=30
+    - CHRDS_HTTP_RL=100
+    - CHRDS_HTTP_TLS=false
+    - CHRDS_HTTP_CERTPATH=
+    - CHRDS_HTTP_KEYPATH=
+    - CHRDS_HTTP_CAPATH=
+    - CHRDS_HTTP_CLIENTINSECURE=true
+    - CHRDS_DB_HOST=127.0.0.1:9042
+    - CHRDS_DB_USERNAME=cassandra
+    - CHRDS_DB_PASSWORD=cassandra
+    - CHRDS_DB_TLS=false
+    - CHRDS_DB_CERTPATH=
+    - CHRDS_DB_KEYPATH=
+    - CHRDS_DB_CAPATH=
+    - CHRDS_DB_HOSTVERIFICATION=false
+    - CHRDS_DB_KEYSPACE=chrds
+    - CHRDS_DB_CONSISTENCY=Quorum
+    - CHRDS_DB_CONSISTENCYREAD=One
+    - CHRDS_DB_TIMEOUT=30000

@@ -1,0 +1,33 @@
+{
+	"UIMANAGER": {
+		"MODULЕID": "623a57c2-3df5-4287-ada5-82f7e4a0b5db",
+		"SPACEID": "17f0bd20-41cf-4801-a481-ff721a41fa93",
+		"DATAMANAGERURL": ["http://localhost:6006"]
+	},
+	"HTTP": {
+		"HOST": "0.0.0.0",
+		"PORT": "7007",
+		"READTIMEOUT": 30,
+		"WRITETIMEOUT": 30,
+		"RL": 100,
+		"TLS": false,
+		"CERTPATH": "",
+		"KEYPATH": "",
+		"CAPATH": "",
+		"CLIENTINSECURE": true
+	},
+	"DB": {
+		"HOSTS": ["127.0.0.1:19042", "127.0.0.1:29042"],
+		"USERNAME": "cassandra",
+		"PASSWORD": "cassandra",
+		"TLS": false,
+		"CERTPATH": "",
+		"KEYPATH": "",
+		"CAPATH": "",
+		"HOSTVERIFICATION": false,
+		"KEYSPACE": "chrds",
+		"CONSISTENCY": "Quorum",
+		"CONSISTENSYREAD": "One",
+		"TIMEOUT": 30000
+	}
+}

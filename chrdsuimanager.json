@@ -17,7 +17,7 @@
 		"CLIENTINSECURE": true
 	},
 	"DB": {
-		"HOSTS": ["127.0.0.1:19042", "127.0.0.1:29042"],
+		"HOSTS": ["127.0.0.1:9042", "127.0.0.1:9043"],
 		"USERNAME": "cassandra",
 		"PASSWORD": "cassandra",
 		"TLS": false,

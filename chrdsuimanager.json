@@ -2,7 +2,7 @@
 	"UIMANAGER": {
 		"MODULЕID": "623a57c2-3df5-4287-ada5-82f7e4a0b5db",
 		"SPACEID": "17f0bd20-41cf-4801-a481-ff721a41fa93",
-		"DATAMANAGERURL": ["http://localhost:6006"]
+		"DATAMANAGERURL": ["http://localhost:6006","http://localhost:6007"]
 	},
 	"HTTP": {
 		"HOST": "0.0.0.0",
@@ -17,9 +17,9 @@
 		"CLIENTINSECURE": true
 	},
 	"DB": {
-		"HOSTS": ["127.0.0.1:9042", "127.0.0.1:9043"],
-		"USERNAME": "",
-		"PASSWORD": "",
+		"HOSTS": ["127.0.0.1:19042", "127.0.0.1:29042"],
+		"USERNAME": "chrds",
+		"PASSWORD": "chrds",
 		"TLS": false,
 		"CERTPATH": "",
 		"KEYPATH": "",

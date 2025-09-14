@@ -22,6 +22,7 @@
                         </template>
                     </va-switch>
                 </va-navbar-item>
+                <va-navbar-item v-if="!userBlock" class="menu" v-on:click="this.$router.push('/settings')"><va-icon class="mr-2" name="settings" size="2rem" /></va-navbar-item>
                 <va-navbar-item class="menu" v-on:click="this.$router.push('/about')"> {{ $t('message.help') }} </va-navbar-item>
                 <va-navbar-item class="menu" v-on:click="exit()"> {{ $t('message.exit') }} </va-navbar-item>
                 <va-navbar-item class="user"><va-avatar v-bind:color="userRoleColor" v-on:click="showModal=true"> {{ user[0] }} </va-avatar></va-navbar-item>
@@ -68,6 +69,7 @@ export default {
     name: 'main-app',
     data() {
         return {
+            userBlock: true,
             localeOptions: this.localeSelect(),
             tabValue: 0,
             version: this.$t('message.nodata'),
@@ -141,10 +143,13 @@ export default {
                     vm.userID = data.userid;
                     if (data.role == "superadmin") {
                         vm.userRoleColor = "danger";
+                        vm.userBlock = false;
                     } else if (data.role == "admin") {
                         vm.userRoleColor = "warning";
+                        vm.userBlock = false;
                     } else {
                         vm.userRoleColor = "primary";
+                        vm.userBlock = true;
                     }
                     return true;
                 }
@@ -152,26 +157,26 @@ export default {
         },
         putPassword() {
             const vm = this;
-            if (this.CurPassword != "" && this.NewPassword != "" && this.newPassword2 != "") {
+            if (vm.CurPassword != "" && vm.NewPassword != "" && vm.newPassword2 != "") {
                 if (this.newPassword != this.curPassword) {
                     if (this.newPassword == this.newPassword2) {
                         if ((this.newPassword).length >= 8) {
-                            if (confirm($t('message.password.confirm'))) {
+                            if (confirm(vm.$t('password.confirm'))) {
                                 var dataPut = {
-                                    'curpassword': sha256(this.curPassword),
-                                    'newpassword': sha256(this.newPassword),
+                                    'curpassword': sha256(vm.curPassword),
+                                    'newpassword': sha256(vm.newPassword),
                                 }
                                 $.ajax({
                                     url: "/api/v1/password",
                                     type: "PUT",
                                     dataType: "json",
                                     data: JSON.stringify(dataPut),
-                                    success: function() {
-                                        vm.$vaToast.init({ message: vm.$t('password.message01'), color: 'primary' });
-                                        vm.showModal = false;
-                                        return true;
-                                    },
                                     statusCode: {
+                                        200: function() {
+                                            vm.$vaToast.init({ message: vm.$t('password.message01'), color: 'primary' });
+                                            vm.showModal = false;
+                                            return true;
+                                        },
                                         404: function() {
                                             vm.$vaToast.init({ message: vm.$t('password.message02'), color: 'danger' });
                                             vm.showModal = true;

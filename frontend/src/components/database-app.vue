@@ -32,39 +32,15 @@ export default {
             gridApi: null,
             componentKey: 0,
             colDefs: [
-                    { field: "peer", headerName: "Peer" },
-                    { field: "datacenter", headerName: "DC" },
-                    { field: "hostid", headerName: "Host ID" },
-                    { field: "owns", headerName: "Owns" },
-                    { field: "tokens", headerName: "Tokens" },
-                    { field: "load", headerName: "Load" },
-                    {
-                        field: "up",
-                        headerName: "Up",
-                        cellClass: this.cellClassUP,
-                    },
-                    {
-                        field: "status", 
-                        headerName: this.$t('message.status'),
-                        cellClass: this.cellClassStatus,
-                    },
+                    { field: "host", headerName: "Host" },
+                    { field: "dc", headerName: "DC" },
+                    { field: "rack", headerName: "Rack" },
+                    { field: "version", headerName: "Version" },
+                    { field: "stat", headerName: "Stat" },
                 ],
         }
     },
     methods: {
-        cellClassStatus(params) {
-            return params.value === "NORMAL" ? "db-green" : "db-red";
-        },
-        cellClassUP(params) {
-            return params.value === "UP" ? "db-green" : "db-red";
-        },
-        getUpText(value) {
-            if (value === true) {
-                return "UP";
-            } else {
-                return "DOWN";
-            }
-        },
         databaseStatus() {
             const vm = this;
             vm.tableLoading = true;
@@ -75,11 +51,12 @@ export default {
                 success: function (data) {
                     let dataNormal = [];
                     if (data != null) {
+                        console.log(data);
                         data.forEach(function(item, i) {
                             dataNormal[i] = item;
-                            dataNormal[i].datacenter = (item.datacenter).toUpperCase();
-                            dataNormal[i].status = (item.status).toUpperCase();
-                            dataNormal[i].up = vm.getUpText(item.up)
+                            dataNormal[i].dc = (item.dc).toUpperCase();
+                            dataNormal[i].rack = (item.rack).toUpperCase();
+                            dataNormal[i].stat = (item.stat).toUpperCase();
                         });
                     }
                     
@@ -143,23 +120,12 @@ export default {
     watch: {
         locale(newValue, oldValue) {
             this.colDefs = [
-                { field: "peer", headerName: "Peer" },
-                { field: "datacenter", headerName: "DC" },
-                { field: "hostid", headerName: "Host ID" },
-                { field: "owns", headerName: "Owns" },
-                { field: "tokens", headerName: "Tokens" },
-                { field: "load", headerName: "Load" },
-                {
-                    field: "up",
-                    headerName: "Up",
-                    cellClass: this.cellClassUP,
-                },
-                {
-                    field: "status", 
-                    headerName: this.$t('message.status'),
-                    cellClass: this.cellClass,
-                },
-            ];
+                    { field: "host", headerName: "Host" },
+                    { field: "dc", headerName: "DC" },
+                    { field: "rack", headerName: "Rack" },
+                    { field: "version", headerName: "Version" },
+                    { field: "stat", headerName: "Stat" },
+                ];
             this.componentKey += 1;
         },
         mode(newValue, oldValue) {
@@ -175,14 +141,3 @@ export default {
     }
 }
 </script>
-
-<style>
-.db-red {
-    background-color: rgb(224, 80, 61);
-    color: black;
-}
-.db-green {
-    background-color: rgb(102, 190, 51);
-    color: black;
-}
-</style>

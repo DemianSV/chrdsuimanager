@@ -408,38 +408,40 @@
                 }
 
                 let errorFlag = 0;
-                vm.dashboardsEdit[index].chartdata.forEach(function(item, i) {
-                    vm.dashboardsEdit[index].chartdata[i].graphorder = parseInt(vm.dashboardsEdit[index].chartdata[i].graphorder);
-                    vm.dashboardsEdit[index].chartdata[i].spaceid = vm.spaceValue[index][i].value;
-                    vm.dashboardsEdit[index].chartdata[i].metric = vm.metricValue[index][i].value;
-                    vm.dashboardsEdit[index].chartdata[i].graphtype = vm.graphtypeValue[index][i].value;
-                    vm.dashboardsEdit[index].chartdata[i].groupfunc = vm.groupfuncValue[index][i].value;
-
-                    if (vm.dashboardsEdit[index].chartdata[i].spaceid == undefined) {
-                        vm.showModalEdit[index] = true;
-                        vm.$vaToast.init({ message: vm.$t('dashboard.message18') + ' ' + (i + 1), color: 'warning' });
-                        errorFlag = 1;
-                        return;
-                    }
-                    if (vm.dashboardsEdit[index].chartdata[i].metric == undefined) {
-                        vm.showModalEdit[index] = true;
-                        vm.$vaToast.init({ message: vm.$t('dashboard.message19') + ' ' + (i + 1), color: 'warning' });
-                        errorFlag = 1;
-                        return;
-                    }
-                    if (vm.dashboardsEdit[index].chartdata[i].graphtype == undefined) {
-                        vm.showModalEdit[index] = true;
-                        vm.$vaToast.init({ message: vm.$t('dashboard.message20') + ' ' + (i + 1), color: 'warning' });
-                        errorFlag = 1;
-                        return;
-                    }
-                    if (vm.dashboardsEdit[index].chartdata[i].groupfunc == undefined) {
-                        vm.showModalEdit[index] = true;
-                        vm.$vaToast.init({ message: vm.$t('dashboard.message21') + ' ' + (i + 1), color: 'warning' });
-                        errorFlag = 1;
-                        return;
-                    }
-                });
+                if (vm.dashboardsEdit[index].chartdata != undefined) {
+                    vm.dashboardsEdit[index].chartdata.forEach(function(item, i) {
+                        vm.dashboardsEdit[index].chartdata[i].graphorder = parseInt(vm.dashboardsEdit[index].chartdata[i].graphorder);
+                        vm.dashboardsEdit[index].chartdata[i].spaceid = vm.spaceValue[index][i].value;
+                        vm.dashboardsEdit[index].chartdata[i].metric = vm.metricValue[index][i].value;
+                        vm.dashboardsEdit[index].chartdata[i].graphtype = vm.graphtypeValue[index][i].value;
+                        vm.dashboardsEdit[index].chartdata[i].groupfunc = vm.groupfuncValue[index][i].value;
+                    
+                        if (vm.dashboardsEdit[index].chartdata[i].spaceid == undefined) {
+                            vm.showModalEdit[index] = true;
+                            vm.$vaToast.init({ message: vm.$t('dashboard.message18') + ' ' + (i + 1), color: 'warning' });
+                            errorFlag = 1;
+                            return;
+                        }
+                        if (vm.dashboardsEdit[index].chartdata[i].metric == undefined) {
+                            vm.showModalEdit[index] = true;
+                            vm.$vaToast.init({ message: vm.$t('dashboard.message19') + ' ' + (i + 1), color: 'warning' });
+                            errorFlag = 1;
+                            return;
+                        }
+                        if (vm.dashboardsEdit[index].chartdata[i].graphtype == undefined) {
+                            vm.showModalEdit[index] = true;
+                            vm.$vaToast.init({ message: vm.$t('dashboard.message20') + ' ' + (i + 1), color: 'warning' });
+                            errorFlag = 1;
+                            return;
+                        }
+                        if (vm.dashboardsEdit[index].chartdata[i].groupfunc == undefined) {
+                            vm.showModalEdit[index] = true;
+                            vm.$vaToast.init({ message: vm.$t('dashboard.message21') + ' ' + (i + 1), color: 'warning' });
+                            errorFlag = 1;
+                            return;
+                        }
+                    });
+                }
 
                 if (errorFlag == 1) {
                     return;
@@ -734,6 +736,7 @@
 
             this.getDashboard();
             this.spaceSelect();
+            this.chartDataIntervalID = window.setInterval(this.chartDataUpdate, 10000);
         },
         unmounted() {
             clearInterval(this.chartDataIntervalID);

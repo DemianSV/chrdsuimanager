@@ -25,6 +25,7 @@
         <div><va-input class="mb-4" v-model="interval" :placeholder="$t('task.message09')" :label="$t('task.message10')"></va-input></div>
         <div><va-input class="mb-4" background="danger" v-model="critical" :placeholder="$t('task.message11')" :label="$t('task.message12')" v-bind:disabled="isDisabled02"></va-input></div>
         <div><va-input class="mb-4" background="warning" v-model="warning" :placeholder="$t('task.message13')" :label="$t('task.message14')" v-bind:disabled="isDisabled04"></va-input></div>
+        <div><va-select class="mb-4" v-model="emailListValue" :options="emailListOptions" v-on:update:model-value="isErrorCh" :label="$t('task.message22')" :placeholder="$t('task.message23')" :no-options-text="$t('message.listempty')" clearable></va-select></div>
         <div><va-select v-model="statusValue" class="mb-4" :placeholder="$t('task.message15')" :label="$t('message.status')" v-model:options="statusOptions"></va-select></div>
     </va-modal>
     <va-modal v-model="showModal01" :title="$t('task.message21')" v-on:ok="putTaskUpdate()" :okText="$t('message.save')" :cancelText="$t('message.cancel')" noOutsideDismiss="true" zIndex="5">
@@ -36,6 +37,7 @@
         <div><va-input class="mb-4" v-model="interval" :placeholder="$t('task.message09')" :label="$t('task.message10')"></va-input></div>
         <div><va-input class="mb-4" background="danger" v-model="critical" :placeholder="$t('task.message11')" :label="$t('task.message12')"></va-input></div>
         <div><va-input class="mb-4" background="warning" v-model="warning" :placeholder="$t('task.message13')" :label="$t('task.message14')"></va-input></div>
+        <div><va-select class="mb-4" v-model="emailListValue" :options="emailListOptions" v-on:update:model-value="isErrorCh" :label="$t('task.message22')" :placeholder="$t('task.message23')" :no-options-text="$t('message.listempty')" clearable></va-select></div>
         <div><va-select v-model="statusValue" class="mb-4" :placeholder="$t('task.message15')" :label="$t('message.status')" v-model:options="statusOptions"></va-select></div>
     </va-modal>
     <va-modal v-model="showModal03" :title="$t('task.message16')" v-on:ok="putTaskRemove(rowIndexRemove)" :okText="$t('message.delete')" :cancelText="$t('message.cancel')" noOutsideDismiss="true" zIndex="5">
@@ -74,6 +76,8 @@
                 isError04: false,
                 spaceOptions: [],
                 moduleOptions: [],
+                emailListOptions: [],
+                emailListValue: {},
                 spaceValue: {},
                 moduleValue: {},
                 userRole: null,
@@ -141,6 +145,8 @@
             rowClickEdit(value) {
                 let vm = this;
 
+                this.emailListValue = "";
+
                 this.moduleOptions.forEach(function(item) {
                     if (item.value == vm.tableData[value].moduleid) {
                         vm.moduleValue = item;
@@ -171,6 +177,12 @@
                         return;
                     }
                 })
+                this.emailListOptions.forEach(function(item) {
+                    if (item.value == vm.tableData[value].emaillistid) {
+                        vm.emailListValue = item;
+                        return;
+                    }
+                })
 
                 this.showModal01 = true;
                 this.metric = this.tableData[value].metric;
@@ -189,6 +201,7 @@
                 this.datatypeValue = this.datatypeOptions[0];
                 this.objectValue = this.objectOptions[0];
                 this.showModal02 = true;
+                this.emailListValue = "";
             },
             taskSelect() {
                 const vm = this;
@@ -219,6 +232,7 @@
                     warning: this.warning,
                     interval: parseInt(this.interval),
                     datatype: this.datatypeValue.value,
+                    emaillistid: this.emailListValue.value,
                 };
 
                 $.ajax({
@@ -318,6 +332,7 @@
                     warning: this.warning,
                     interval: parseInt(this.interval),
                     datatype: this.datatypeValue.value,
+                    emaillistid: this.emailListValue.value,
                 };
                 $.ajax({
                     url: "/api/v1/admin/task/create",
@@ -358,6 +373,7 @@
                 this.taskSelect();
                 this.spaceSelect();
                 this.moduleSelect();
+                this.emailListSelect();
             },
             spaceSelect() {
                 const vm = this;
@@ -392,6 +408,30 @@
                             if (data.length > 0) {
                                 data.forEach(function(item, i) {
                                     vm.moduleOptions[i] = { text: item.description, value: item.id };
+                                });
+                            }
+                        }
+                        return true;
+                    }
+                });
+            },
+            emailListSelect() {
+                const vm = this;
+                $.ajax({
+                    url: "/api/v1/admin/emaillist/select?" + Math.random(),
+                    type: "GET",
+                    dataType: "json",
+                    success: function (data) {
+                        if (data == null) {
+                            data = [];
+                        } else {
+                            if (data.length > 0) {
+                                let iA = 0;
+                                data.forEach(function(item) {
+                                    if (item.status == 1) {
+                                        vm.emailListOptions[iA] = { text: item.name, value: item.id };
+                                        iA++;
+                                    }
                                 });
                             }
                         }

@@ -11,6 +11,7 @@ import dashboard from './components/dashboard-app.vue'
 import database from './components/database-app.vue'
 import rawdata from './components/rawdata-app.vue'
 import problem from './components/problem-app.vue'
+import settings from './components/settings-app.vue'
 
 /* Вариант с подгружаемыми шаблонами vue (побочный эффект недоступность элементов UI при недоступности uimanager) */
 /*
@@ -82,6 +83,11 @@ const routes = [
         path: "/database",
         name: "Состояние БД",
         component: database,
+    },
+        {
+        path: "/settings",
+        name: "Настройки",
+        component: settings,
     },
 ];
 

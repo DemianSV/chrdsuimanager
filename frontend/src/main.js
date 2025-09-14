@@ -12,9 +12,8 @@ import login from './login-app.vue';
 import main from './main-app.vue';
 import router from './router.js';
 
-var versionApp = "1.0.4";
-// var versionApp = "1.0.5";
-var vuesticVersion = "1.9.12";
+var versionApp = "1.0.5";
+var vuesticVersion = "1.10.3";
 
 console.log("FrontEnd version: " + versionApp);
 console.log("Vue version: " + version);
@@ -76,6 +75,7 @@ const i18n = createI18n({
                 text: 'Text',
                 number: 'Number',
                 dbstatus: 'DB state',
+                settings: 'Settings',
             },
             login: {
                 username01: 'Enter username',
@@ -179,6 +179,8 @@ const i18n = createI18n({
                 message19: 'The task has been successfully created',
                 message20: 'Failed to create a task',
                 message21: 'Task data',
+                message22: 'Mailing list',
+                message23: 'Select a mailing list',
             },
             role: {
                 superadmin: 'Super administrator',
@@ -259,6 +261,33 @@ const i18n = createI18n({
                 message35: 'Grouping function',
                 message36: 'Sorting',
             },
+            emaillist: {
+                message01: 'Enter the name of the list',
+                message02: 'List name',
+                message03: 'Enter the description of the list',
+                message04: 'List description',
+                message05: 'EMail distribution settings',
+                message06: 'EMail notification list settings',
+                message07: 'New list',
+                message08: 'Delete list',
+                message09: 'Edit list data',
+                message10: 'Confirm list deletion',
+                message11: 'Select list status',
+                message12: 'EMail addresses',
+                message13: 'EMail address',
+                message14: 'Enter the name of the list',
+                message15: 'List successfully created',
+                message16: 'Failed to create list',
+                message17: 'Enter EMail address',
+                message18: 'List successfully updated',
+                message19: 'Failed to update list',
+                message20: 'List successfully deleted',
+                message21: 'Failed to delete list',
+                message22: 'Enter EMail address',
+                message23: 'Description of the address',
+                message24: 'Enter the description of the address',
+                message25: 'Email address is entered incorrectly',
+            },
             calendar: {
                 monthnames: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
                 firstweekday: 'Monday',
@@ -315,6 +344,7 @@ const i18n = createI18n({
                 text: 'Текст',
                 number: 'Число',
                 dbstatus: 'Состояние БД',
+                settings: 'Настройки',
             },
             login: {
                 username01: 'Введите имя пользователя',
@@ -418,6 +448,8 @@ const i18n = createI18n({
                 message19: 'Задача успешно создана',
                 message20: 'Не удалось создать задачу',
                 message21: 'Данные задачи',
+                message22: 'Список рассылки',
+                message23: 'Выберите список рассылки',
             },
             role: {
                 superadmin: 'Супер администратор',
@@ -470,7 +502,7 @@ const i18n = createI18n({
                 message07: 'Новый дашборд',
                 message08: 'Удалить дашборд',
                 message09: 'Редактировать данные дашборда',
-                message10: 'Подтвердите уаление дашборда',
+                message10: 'Подтвердите удаление дашборда',
                 message11: 'Данные графиков',
                 message12: 'Укажите время начала периода',
                 message13: 'Укажите дату начала периода',
@@ -497,6 +529,33 @@ const i18n = createI18n({
                 message34: 'Цвет графика',
                 message35: 'Функция группировки',
                 message36: 'Сортировка',
+            },
+            emaillist: {
+                message01: 'Введите название списка',
+                message02: 'Название списка',
+                message03: 'Введите описание списка',
+                message04: 'Описание списка',
+                message05: 'Настройка EMail рассылок',
+                message06: 'Настройка списков рассылки EMail уведомлений',
+                message07: 'Новый список',
+                message08: 'Удалить список',
+                message09: 'Редактировать данные списка',
+                message10: 'Подтвердите удаление списка',
+                message11: 'Выберите статус списка',
+                message12: 'EMail адреса',
+                message13: 'EMail адрес',
+                message14: 'Введите название списка',
+                message15: 'Список успешно создан',
+                message16: 'Не удалось создать список',
+                message17: 'Введите EMail адрес',
+                message18: 'Список успешно обновлён',
+                message19: 'Не удалось обновить список',
+                message20: 'Список успешно удален',
+                message21: 'Не удалось удалить список',
+                message22: 'Введите EMail адрес',
+                message23: 'Описание адреса',
+                message24: 'Введите описание адреса',
+                message25: 'EMail адрес введён неверно',
             },
             calendar: {
                 monthnames: ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'],

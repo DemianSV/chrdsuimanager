@@ -1,4 +1,4 @@
-# Charybdis Monitoring System UIManager
+# Charybdis Monitoring System UIManager 1.0.5
 
 The **Charybdis Monitoring System** project is an attempt to create a simple infrastructure and application monitoring system based on Zabbix's best practices while addressing its main weaknesses in terms of scalability and data storage.  
 **UIManager** is a component that implements a full-fledged user WEB interface for the monitoring system's functions.

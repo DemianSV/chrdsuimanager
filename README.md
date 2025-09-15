@@ -153,3 +153,24 @@ Configuration can be done in two ways:
 	}
 }
 ```
+
+## Using Grafana
+Create a user in the Cassandra database, for example ** Grafana **, and give out the right only to read for the table ** chRDS.RAW_DATA02 **.
+Install Grafana in any convenient way using the documentation from the official website (https://grafana.com/docs/grafana/latest/setup-grafana/installation/).
+Turn on and configure Data Sources Plugin: ** Apache Cassandra Datasource for Grafana **.
+
+<img width="1453" height="243" alt="Снимок экрана 2025-08-30 в 18 25 56" src="https://github.com/user-attachments/assets/ac9cc4f9-ea1e-4f4b-a314-7f161624c361" />
+
+Set up a plugin to connect to a database with an previously established UZ.
+
+Create a dashboard on the metrics stored in the database using an example of a request:
+
+```sql
+SELECT space_id, value, totimestamp(maxtimeuuid(event_time)), space_description FROM chrds.raw_data02 WHERE space_id IN (65c6b051-10fb-4bd7-8c04-7fe478e55d13, 34bcd935-8e7a-4b79-b76b-352cf3ece91f) AND metric = 'system.cpu.util' AND synt_key IN ('${__from:date:YYYY.MM}', '${__to:date:YYYY.MM}') AND event_time > $__from and event_time < $__to
+```
+
+<img width="1134" height="874" alt="Снимок экрана 2025-09-13 в 10 31 56" src="https://github.com/user-attachments/assets/a2143064-11a2-4fc7-aa2e-f34a35e063c5" />
+
+<img width="1469" height="820" alt="Снимок экрана 2025-09-13 в 10 26 15" src="https://github.com/user-attachments/assets/b2ac7f9f-b7b8-454f-af06-ed785bb50f3b" />
+
+

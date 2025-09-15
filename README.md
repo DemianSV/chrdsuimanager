@@ -155,9 +155,11 @@ Configuration can be done in two ways:
 ```
 
 ## Using Grafana
-Create a user in the Cassandra database, for example ** Grafana **, and give out the right only to read for the table ** chRDS.RAW_DATA02 **.
+Create a user in the Cassandra database, for example **Grafana**, and give out the right only to read for the table **chRDS.RAW_DATA02**.
+
 Install Grafana in any convenient way using the documentation from the official website (https://grafana.com/docs/grafana/latest/setup-grafana/installation/).
-Turn on and configure Data Sources Plugin: ** Apache Cassandra Datasource for Grafana **.
+
+Turn on and configure Data Sources Plugin: **Apache Cassandra Datasource for Grafana**.
 
 <img width="1453" height="243" alt="Снимок экрана 2025-08-30 в 18 25 56" src="https://github.com/user-attachments/assets/ac9cc4f9-ea1e-4f4b-a314-7f161624c361" />
 

@@ -155,7 +155,7 @@ Configuration can be done in two ways:
 ```
 
 ## Using Grafana
-Create a user in the Cassandra database, for example **Grafana**, and give out the right only to read for the table **chRDS.RAW_DATA02**.
+Create a user in the Cassandra database, for example **Grafana**, and give out the right only to read for the table **chrds.raw_data02**.
 
 Install Grafana in any convenient way using the documentation from the official website (https://grafana.com/docs/grafana/latest/setup-grafana/installation/).
 

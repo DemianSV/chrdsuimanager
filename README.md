@@ -82,10 +82,10 @@ Configuration can be done in two ways:
 >**HTTP**: Group of variables for the HTTP scope,  
 >**HOST**: Configuration parameter.
 
-**CHRDS_TLS_CERTPATH**: Path to the certificate for UI Manager connections,
-**CHRDS_TLS_KEYPATH**: Path to the private key for UI Manager connections,
-**CHRDS_TLS_KEYPASSWORD**: The password for the private key,
-**CHRDS_TLS_CAPATH**: Path to the CA certificate for HTTP server connections.
+**CHRDS_TLS_CERTPATH**: Path to the certificate for UI Manager connections,  
+**CHRDS_TLS_KEYPATH**: Path to the private key for UI Manager connections,  
+**CHRDS_TLS_KEYPASSWORD**: The password for the private key,  
+**CHRDS_TLS_CAPATH**: Path to the CA certificate for HTTP server connections.  
 
 **CHRDS_UIMANAGER_MODULEID**: Reserved module ID for UIManager,  
 **CHRDS_UIMANAGER_SPACEID**: Reserved space ID for UIManager,  

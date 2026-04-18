@@ -8,7 +8,7 @@
     <div class="login">
         <div class="left">
             <!--<div><img :src="require('@/assets/logo01.png')" height="500" align="right"></div>-->
-            <div><img :src="logo01" height="500" align="right"></div>
+            <div><img :src="logo01" height="450" align="right"></div>
         </div>
         <div class="right">
             <div>
@@ -29,7 +29,7 @@
 import sha256 from 'sha256'
 import $ from 'jquery'
 import router from './router.js';
-import logo01 from '@/assets/logo01.png';
+import logo01 from '@/assets/logo01.svg';
 
 export default {
     name: 'login-app',
@@ -52,7 +52,7 @@ export default {
     },
     methods: {
         login() {
-            const vm = this;
+            let vm = this;
             vm.isDisabled = true;
             if( vm.username == '' || vm.password == '') {
                 vm.$vaToast.init({ message: vm.$t('login.message02'), color: 'warning' });

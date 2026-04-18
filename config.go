@@ -9,6 +9,13 @@ import (
 )
 
 type (
+	// Общие параметры TLS
+	TAppConfigTLS struct {
+		CERTPATH    string `json:"CERTPATH"`
+		KEYPATH     string `json:"KEYPATH"`
+		KEYPASSWORD string `json:"KEYPASSWORD"`
+		CAPATH      string `json:"CAPATH"`
+	}
 	// Параметры UIManager
 	TAppConfigUIManager struct {
 		MODULEID       string   `json:"MODULЕID"`
@@ -17,16 +24,13 @@ type (
 	}
 	// Параметры запуска HTTP сервера
 	TAppConfigHTTP struct {
-		HOST           string `json:"HOST"`
-		PORT           string `json:"PORT"`
-		READTIMEOUT    int    `json:"READTIMEOUT"`
-		WRITETIMEOUT   int    `json:"WRITETIMEOUT"`
-		RL             int    `json:"RL"`
-		TLS            bool   `json:"TLS"`
-		CERTPATH       string `json:"CERTPATH"`
-		KEYPATH        string `json:"KEYPATH"`
-		CAPATH         string `json:"CAPATH"`
-		CLIENTINSECURE bool   `json:"CLIENTINSECURE"`
+		HOST         string `json:"HOST"`
+		PORT         string `json:"PORT"`
+		READTIMEOUT  int    `json:"READTIMEOUT"`
+		WRITETIMEOUT int    `json:"WRITETIMEOUT"`
+		RL           int    `json:"RL"`
+		TLS          bool   `json:"TLS"`
+		SKIPVERIFY   bool   `json:"SKIPVERIFY"`
 	}
 
 	/*
@@ -42,22 +46,20 @@ type (
 		LocalOn
 	*/
 	TAppConfigDB struct {
-		HOSTS            []string `json:"HOSTS"`
-		USERNAME         string   `json:"USERNAME"`
-		PASSWORD         string   `json:"PASSWORD"`
-		CERTPATH         string   `json:"CERTPATH"`
-		KEYPATH          string   `json:"KEYPATH"`
-		CAPATH           string   `json:"CAPATH"`
-		KEYSPACE         string   `json:"KEYSPACE"`
-		CONSISTENCY      string   `json:"CONSISTENCY"`
-		CONSISTENCYREAD  string   `json:"CONSISTENCYREAD"`
-		TIMEOUT          int      `json:"TIMEOUT"`
-		TLS              bool     `json:"TLS"`
-		HOSTVERIFICATION bool     `json:"HOSTVERIFICATION"`
+		HOSTS           []string `json:"HOSTS"`
+		USERNAME        string   `json:"USERNAME"`
+		PASSWORD        string   `json:"PASSWORD"`
+		KEYSPACE        string   `json:"KEYSPACE"`
+		CONSISTENCY     string   `json:"CONSISTENCY"`
+		CONSISTENCYREAD string   `json:"CONSISTENCYREAD"`
+		TIMEOUT         int      `json:"TIMEOUT"`
+		TLS             bool     `json:"TLS"`
+		SKIPVERIFY      bool     `json:"SKIPVERIFY"`
 	}
 
 	// Общая структура параметров сервиса
 	TAppConfig struct {
+		TLS       TAppConfigTLS       `json:"TLS"`
 		UIMANAGER TAppConfigUIManager `json:"UIMANAGER"`
 		HTTP      TAppConfigHTTP      `json:"HTTP"`
 		DB        TAppConfigDB        `json:"DB"`
@@ -85,6 +87,11 @@ func (appCfg *TAppConfig) LoadConfig() (err error) {
 
 	/*
 		Переменное окружение (для Docker версии):
+		CHRDS_TLS_CERTPATH Путь к сертификату для TLS взаимодействия
+		CHRDS_TLS_KEYPATH Путь к приватному ключу для TLS взаимодействия
+		CHRDS_TLS_KEYPASSWORD Пароль для приватного ключа TLS
+		CHRDS_TLS_CAPATH Путь к CA сертификату для TLS взаимодействия
+
 		CHRDS_UIMANAGER_MODULEID ID Модуля зарезервированный для UIManager
 		CHRDS_UIMANAGER_SPACEID ID Пространства зарезервированного для UIManager
 		CHRDS_UIMANAGER_DATAMANAGERURL URL API DataManager
@@ -95,26 +102,42 @@ func (appCfg *TAppConfig) LoadConfig() (err error) {
 		CHRDS_HTTP_WRITETIMEOUT Write Timeout для HTTP сервера
 		CHRDS_HTTP_RL Requests Limit
 		CHRDS_HTTP_TLS Включение TLS взаимодействия с http сервером (true/false)
-		CHRDS_HTTP_CERTPATH Путь к сертификату для подключения к http серверу
-		CHRDS_HTTP_KEYPATH Путь к приватному ключу для подключения к http серверу
-		CHRDS_HTTP_CAPATH Путь к CA сертификату для подключения к http серверу
-		CHRDS_HTTP_CLIENTINSECURE Выключение проверки сервера по сертификату при исходящих соединениях (true/false)
+		CHRDS_HTTP_SKIPVERIFY Выключение проверки сертификата (true/false)
 
 		CHRDS_DB_HOST Массив адресов для подключения к БД, разделитель запятая (127.0.0.1:19042,127.0.0.1:29042)
 		CHRDS_DB_USERNAME Имя пользователя для подключения к БД
 		CHRDS_DB_PASSWORD Пароль для подключения к БД
 		CHRDS_DB_TLS Включение TLS взаимодействия с кластером БД (true/false)
-		CHRDS_DB_CERTPATH Путь к сертификату для подключения к БД
-		CHRDS_DB_KEYPATH Путь к приватному ключу для подключения к БД
-		CHRDS_DB_CAPATH Путь к CA сертификату для подключения к БД
-		CHRDS_DB_HOSTVERIFICATION Включение проверки HostVerification по сертификату при подключении к БД (true/false)
+		CHRDS_DB_HOSTVERIFICATION Включение проверки сертификата при подключении к БД (true/false)
 		CHRDS_DB_KEYSPACE Пространство ключей (KeySpace) для подключения
 		CHRDS_DB_CONSISTENCY Параметр Consistency для данных в кластере БД
 		CHRDS_DB_CONSISTENCYREAD Параметр Consistency для выборки данных из БД
 		CHRDS_DB_TIMEOUT Значение времени ожидания выполнения запроса до принудительного завершения
 	*/
 
+	// TLS общие параметры
 	log.Print("Загрузка конфигурации из переменного окружения...")
+	var tlsCertPathENV string
+	tlsCertPathENV, _ = os.LookupEnv("CHRDS_TLS_CERTPATH")
+	if tlsCertPathENV != "" {
+		appCfg.TLS.CERTPATH = tlsCertPathENV
+	}
+	var tlsKeyPathENV string
+	tlsKeyPathENV, _ = os.LookupEnv("CHRDS_TLS_KEYPATH")
+	if tlsKeyPathENV != "" {
+		appCfg.TLS.KEYPATH = tlsKeyPathENV
+	}
+	var tlsKeyPasswordENV string
+	tlsKeyPasswordENV, _ = os.LookupEnv("CHRDS_TLS_KEYPASSWORD")
+	if tlsKeyPasswordENV != "" {
+		appCfg.TLS.KEYPASSWORD = tlsKeyPasswordENV
+	}
+	var tlsCAPathENV string
+	tlsCAPathENV, _ = os.LookupEnv("CHRDS_TLS_CAPATH")
+	if tlsCAPathENV != "" {
+		appCfg.TLS.CAPATH = tlsCAPathENV
+	}
+
 	// UIManager
 	var uimanagerModuleIDENV string
 	uimanagerModuleIDENV, _ = os.LookupEnv("CHRDS_UIMANAGER_MODULEID")
@@ -187,29 +210,14 @@ func (appCfg *TAppConfig) LoadConfig() (err error) {
 			appCfg.HTTP.TLS = boolValue
 		}
 	}
-	var httpCertPathENV string
-	httpCertPathENV, _ = os.LookupEnv("CHRDS_HTTP_CERTPATH")
-	if httpCertPathENV != "" {
-		appCfg.HTTP.CERTPATH = httpCertPathENV
-	}
-	var httpKeyPathENV string
-	httpKeyPathENV, _ = os.LookupEnv("CHRDS_HTTP_KEYPATH")
-	if httpKeyPathENV != "" {
-		appCfg.HTTP.KEYPATH = httpKeyPathENV
-	}
-	var httpCAPathENV string
-	httpCAPathENV, _ = os.LookupEnv("CHRDS_HTTP_CAPATH")
-	if httpCAPathENV != "" {
-		appCfg.HTTP.CAPATH = httpCAPathENV
-	}
-	var httpCLIENTINSECURE string
-	httpCLIENTINSECURE, _ = os.LookupEnv("CHRDS_HTTP_CLIENTINSECURE")
-	if httpCLIENTINSECURE != "" {
-		boolValue, err := strconv.ParseBool(httpCLIENTINSECURE)
+	var httpSkipVerify string
+	httpSkipVerify, _ = os.LookupEnv("CHRDS_HTTP_TLS_SKIPVERIFY")
+	if httpSkipVerify != "" {
+		boolValue, err := strconv.ParseBool(httpSkipVerify)
 		if err != nil {
-			log.Print("Не удалось конвертировать CHRDS_HTTP_CLIENTINSECURE (" + err.Error() + ")!")
+			log.Print("Не удалось конвертировать CHRDS_HTTP_TLS_SKIPVERIFY (" + err.Error() + ")!")
 		} else {
-			appCfg.HTTP.CLIENTINSECURE = boolValue
+			appCfg.HTTP.SKIPVERIFY = boolValue
 		}
 	}
 
@@ -229,21 +237,6 @@ func (appCfg *TAppConfig) LoadConfig() (err error) {
 	dbPasswordENV, _ = os.LookupEnv("CHRDS_DB_PASSWORD")
 	if dbPasswordENV != "" {
 		appCfg.DB.PASSWORD = dbPasswordENV
-	}
-	var dbCertPathENV string
-	dbCertPathENV, _ = os.LookupEnv("CHRDS_DB_CERTPATH")
-	if dbCertPathENV != "" {
-		appCfg.DB.CERTPATH = dbCertPathENV
-	}
-	var dbKeyPathENV string
-	dbKeyPathENV, _ = os.LookupEnv("CHRDS_DB_KEYPATH")
-	if dbKeyPathENV != "" {
-		appCfg.DB.KEYPATH = dbKeyPathENV
-	}
-	var dbCAPathENV string
-	dbCAPathENV, _ = os.LookupEnv("CHRDS_DB_CAPATH")
-	if dbCAPathENV != "" {
-		appCfg.DB.CAPATH = dbCAPathENV
 	}
 	var dbKeySpaceENV string
 	dbKeySpaceENV, _ = os.LookupEnv("CHRDS_DB_KEYSPACE")
@@ -281,18 +274,22 @@ func (appCfg *TAppConfig) LoadConfig() (err error) {
 			appCfg.DB.TLS = boolValue
 		}
 	}
-	var dbHOSTVERIFICATIONENV string
-	dbHOSTVERIFICATIONENV, _ = os.LookupEnv("CHRDS_DB_HOSTVERIFICATION")
-	if dbHOSTVERIFICATIONENV != "" {
-		boolValue, err := strconv.ParseBool(dbHOSTVERIFICATIONENV)
+	var dbSkipVerifyENV string
+	dbSkipVerifyENV, _ = os.LookupEnv("CHRDS_DB_TLS_SKIPVERIFY")
+	if dbSkipVerifyENV != "" {
+		boolValue, err := strconv.ParseBool(dbSkipVerifyENV)
 		if err != nil {
-			log.Print("Не удалось конвертировать CHRDS_DB_HOSTVERIFICATION (" + err.Error() + ")!")
+			log.Print("Не удалось конвертировать CHRDS_DB_TLS_SKIPVERIFY (" + err.Error() + ")!")
 		} else {
-			appCfg.DB.HOSTVERIFICATION = boolValue
+			appCfg.DB.SKIPVERIFY = boolValue
 		}
 	}
 
 	log.Print("Конфигурационные параметры:")
+
+	log.Print("TLS.CERTPATH: ", appCfg.TLS.CERTPATH)
+	log.Print("TLS.KEYPATH: ", appCfg.TLS.KEYPATH)
+	log.Print("TLS.CAPATH: ", appCfg.TLS.CAPATH)
 
 	log.Print("UIMANAGER.MODULEID: ", appCfg.UIMANAGER.MODULEID)
 	log.Print("UIMANAGER.SPACEID: ", appCfg.UIMANAGER.SPACEID)
@@ -304,18 +301,12 @@ func (appCfg *TAppConfig) LoadConfig() (err error) {
 	log.Print("HTTP.WRITETIMEOUT: ", appCfg.HTTP.WRITETIMEOUT)
 	log.Print("HTTP.RL: ", appCfg.HTTP.RL)
 	log.Print("HTTP.TLS: ", appCfg.HTTP.TLS)
-	log.Print("HTTP.CERTPATH: ", appCfg.HTTP.CERTPATH)
-	log.Print("HTTP.KEYPATH: ", appCfg.HTTP.KEYPATH)
-	log.Print("HTTP.CAPATH: ", appCfg.HTTP.CAPATH)
-	log.Print("HTTP.CLIENTINSECURE: ", appCfg.HTTP.CLIENTINSECURE)
+	log.Print("HTTP.SKIPVERIFY: ", appCfg.HTTP.SKIPVERIFY)
 
 	log.Print("DB.HOSTS: ", appCfg.DB.HOSTS)
 	log.Print("DB.USERNAME: ", appCfg.DB.USERNAME)
 	log.Print("DB.TLS: ", appCfg.DB.TLS)
-	log.Print("DB.CERTPATH: ", appCfg.DB.CERTPATH)
-	log.Print("DB.KEYPATH: ", appCfg.DB.KEYPATH)
-	log.Print("DB.CAPATH: ", appCfg.DB.CAPATH)
-	log.Print("DB.HOSTVERIFICATION: ", appCfg.DB.HOSTVERIFICATION)
+	log.Print("DB.SKIPVERIFY: ", appCfg.DB.SKIPVERIFY)
 	log.Print("DB.KEYSPACE: ", appCfg.DB.KEYSPACE)
 	log.Print("DB.CONSISTENCY: ", appCfg.DB.CONSISTENCY)
 	log.Print("DB.CONSISTENCYREAD: ", appCfg.DB.CONSISTENCYREAD)

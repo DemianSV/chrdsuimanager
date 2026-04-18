@@ -1,6 +1,6 @@
 {
   "name": "uimanager",
-  "version": "0.0.0",
+  "version": "1.1.0",
   "private": true,
   "scripts": {
     "dev": "vite",
@@ -9,21 +9,21 @@
     "lint": "eslint --ext .js,.vue --ignore-path .gitignore --fix src"
   },
   "dependencies": {
-    "ag-grid-vue3": "^34.1.2",
-    "chart.js": "^4.5.0",
-    "core-js": "^3.45.1",
-    "jquery": "^3.7.1",
+    "ag-grid-vue3": "^35.2.1",
+    "chart.js": "^4.5.1",
+    "core-js": "^3.49.0",
+    "jquery": "^4.0.0",
     "moment": "^2.30.1",
     "sha256": "^0.2.0",
-    "vue": "^3.5.21",
-    "vue-chartjs": "^5.3.2",
-    "vue-i18n": "^11.1.12",
-    "vue-router": "^4.5.1",
+    "vue": "^3.5.32",
+    "vue-chartjs": "^5.3.3",
+    "vue-i18n": "^11.3.2",
+    "vue-router": "^5.0.4",
     "vuestic-ui": "^1.10.3",
     "vuex": "^4.1.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^6.0.1",
-    "vite": "^7.1.5"
+    "@vitejs/plugin-vue": "^6.0.6",
+    "vite": "^8.0.8"
   }
 }

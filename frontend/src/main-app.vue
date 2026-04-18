@@ -8,7 +8,7 @@
     <div class="main" style="height: 100%; width: 100%">
         <va-navbar :color="navBarColor" class="up" id="navbar" shadowed>
             <template #left>
-                <va-navbar-item class="logo" v-on:click="this.$router.push('/')"><img :src="logo02" height="50"></va-navbar-item>
+                <va-navbar-item class="logo" v-on:click="this.$router.push('/')"><img :src="logo02" height="50" width="50"></va-navbar-item>
                 <va-navbar-item class="version" v-on:click="this.$router.push('/')"> {{ version }} </va-navbar-item>
                 <va-navbar-item class="badge" v-on:click="this.$router.push('/')"><va-badge :text="$t('message.release')" color="warning"></va-badge></va-navbar-item>
             </template>
@@ -47,22 +47,25 @@ import sha256 from 'sha256'
 import $ from 'jquery'
 import router from './router.js';
 import { useColors } from "vuestic-ui";
-import logo02 from '@/assets/logo02.png';
+import logo02 from '@/assets/logo02.svg';
 
 import { themeQuartz, colorSchemeLight, colorSchemeDark } from 'ag-grid-community';
 import { AG_GRID_LOCALE_RU } from './ag-grid-locale-ru.js';
 import { provideGlobalGridOptions } from 'ag-grid-community';
+import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+
+ModuleRegistry.registerModules([AllCommunityModule]);
 
 const colorAGLight = themeQuartz.withPart(colorSchemeLight)
     .withParams({
         backgroundColor: "rgba(255, 255, 255, 0.3)",
-        headerBackgroundColor: "rgb(233, 235, 236)",
+        headerBackgroundColor: "rgb(233, 235, 236, 0.3)",
     });
 
 const colorAGDark = themeQuartz.withPart(colorSchemeDark)
     .withParams({
         backgroundColor: "rgba(17, 26, 34, 0.3)",
-        headerBackgroundColor: "rgb(40, 48, 56)",
+        headerBackgroundColor: "rgb(40, 48, 56, 0.3)",
     });
 
 export default {
@@ -92,7 +95,7 @@ export default {
     },
     methods: {
         localeSelect() {
-            const vm = this;
+            let vm = this;
             this.localeOptions = [];
             if (this.$i18n.availableLocales.length > 0) {
                 this.$i18n.availableLocales.forEach(function(item) {
@@ -121,7 +124,7 @@ export default {
             });
         },
         versionInfo() {
-            const vm = this;
+            let vm = this;
             $.ajax({
                 url: "/api/v1/version?" + Math.random(),
                 type: "GET",
@@ -133,7 +136,7 @@ export default {
             });
         },
         userInfo() {
-            const vm = this;
+            let vm = this;
             $.ajax({
                 url: "/api/v1/userinfo?" + Math.random(),
                 type: "GET",
@@ -156,7 +159,7 @@ export default {
             });
         },
         putPassword() {
-            const vm = this;
+            let vm = this;
             if (vm.CurPassword != "" && vm.NewPassword != "" && vm.newPassword2 != "") {
                 if (this.newPassword != this.curPassword) {
                     if (this.newPassword == this.newPassword2) {
@@ -217,7 +220,7 @@ export default {
         },
         /* Switching color theme  */
         switchMode() {
-            const vm = this;
+            let vm = this;
 
             const { setColors } = useColors();
             /* Светлая тема */
@@ -271,13 +274,11 @@ export default {
 
                 if (this.$i18n.locale == "ru") {
                     provideGlobalGridOptions({
-                        rowHeight: 30,
                         theme: colorAGLight,
                         localeText: AG_GRID_LOCALE_RU,
                     });
                 } else {
                     provideGlobalGridOptions({
-                        rowHeight: 30,
                         theme: colorAGLight,
                         localeText: null,
                     });
@@ -291,13 +292,11 @@ export default {
 
                 if (this.$i18n.locale == "ru") {
                     provideGlobalGridOptions({
-                        rowHeight: 30,
                         theme: colorAGDark,
                         localeText: AG_GRID_LOCALE_RU,
                     });
                 } else {
                     provideGlobalGridOptions({
-                        rowHeight: 30,
                         theme: colorAGDark,
                         localeText: null,
                     });
@@ -312,13 +311,11 @@ export default {
             if (this.$i18n.locale == "ru") {
                 if (this.switchValue == false) {
                     provideGlobalGridOptions({
-                        rowHeight: 30,
                         localeText: AG_GRID_LOCALE_RU,
                         theme: colorAGLight,
                     });
                 } else {
                     provideGlobalGridOptions({
-                        rowHeight: 30,
                         localeText: AG_GRID_LOCALE_RU,
                         theme: colorAGDark,
                     });
@@ -326,13 +323,11 @@ export default {
             } else {
                 if (this.switchValue == false) {
                     provideGlobalGridOptions({
-                        rowHeight: 30,
                         localeText: null,
                         theme: colorAGLight,
                     });
                 } else {
                     provideGlobalGridOptions({
-                        rowHeight: 30,
                         localeText: null,
                         theme: colorAGDark,
                     });
@@ -344,17 +339,15 @@ export default {
         const colorAGLight = themeQuartz.withPart(colorSchemeLight)
             .withParams({
                 backgroundColor: "rgba(255, 255, 255, 0.3)",
-                headerBackgroundColor: "rgb(233, 235, 236)",
+                headerBackgroundColor: "rgb(233, 235, 236, 0.3)",
                 });
         if (this.$i18n.locale == "ru") {
             provideGlobalGridOptions({
-                rowHeight: 30,
                 localeText: AG_GRID_LOCALE_RU,
                 theme: colorAGLight,
             });
         } else {
             provideGlobalGridOptions({
-                rowHeight: 30,
                 localeText: null,
                 theme: colorAGLight,
             });
@@ -472,15 +465,6 @@ div.logo:hover {
 }
 div.content {
     color: var(--va-primary);
-}
-.va-data-table {
-    /* --va-data-table-thead-color: #1f303eff;
-    --va-data-table-header-background: #d3d8ffbe; */
-    --va-data-table-thead-border-bottom-shadow: inset 0 -1px 0 0 var(--va-primary);
-    --va-data-table-cell-padding: 0.325rem;
-    --va-data-table-striped-tr-opacity: 0.6;
-    --va-data-table-max-height: 80%;
-    max-height: 60vh;
 }
 div.test {
     overflow: auto;

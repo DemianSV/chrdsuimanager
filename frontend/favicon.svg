@@ -2,52 +2,38 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   width="170mm"
-   height="170mm"
-   viewBox="0 0 170 170"
    version="1.1"
-   id="svg5898"
+   id="svg1"
+   width="642.51978"
+   height="642.51978"
+   viewBox="0 0 642.51978 642.51978"
+   xml:space="preserve"
    xmlns="http://www.w3.org/2000/svg"
-   xmlns:svg="http://www.w3.org/2000/svg">
-  <defs
-     id="defs5895" />
-  <g
-     id="layer1"
-     transform="translate(49.027714,-33.127876)">
-    <g
-       id="g20000">
-      <rect
-         style="fill:#2d004a;fill-opacity:1;fill-rule:evenodd;stroke-width:8.59261"
-         id="rect19522"
-         width="170"
-         height="170"
-         x="-49.027714"
-         y="33.127876" />
-      <g
-         id="g19913"
-         transform="translate(-14.175384)">
-        <rect
-           style="fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:7.05556"
-           id="rect19774"
-           width="28.668358"
-           height="100.24094"
-           x="-4.355082"
-           y="102.88694" />
-        <rect
-           style="fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:5.81626"
-           id="rect19774-5"
-           width="28.668358"
-           height="68.119247"
-           x="75.982063"
-           y="135.00862" />
-        <rect
-           style="fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:8.70485"
-           id="rect19774-3"
-           width="28.668358"
-           height="152.5826"
-           x="35.598667"
-           y="50.54528" />
-      </g>
-    </g>
-  </g>
-</svg>
+   xmlns:svg="http://www.w3.org/2000/svg"><defs
+     id="defs1" /><g
+     id="g1"
+     transform="translate(-1650.2974,-2177.3469)"><rect
+       style="fill:#ffffff;fill-opacity:0;fill-rule:evenodd;stroke-width:32.476"
+       id="rect19522-1-7"
+       width="642.51971"
+       height="642.51971"
+       x="1650.2974"
+       y="2177.3469" /><rect
+       style="fill:#81b6dc;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:26.6667"
+       id="rect19774-7-3"
+       width="108.35285"
+       height="378.86337"
+       x="1765.5627"
+       y="2441.0032" /><rect
+       style="fill:#81b6dc;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:21.9827"
+       id="rect19774-5-5-2"
+       width="108.35285"
+       height="257.45859"
+       x="2069.1992"
+       y="2562.408" /><rect
+       style="fill:#81b6dc;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:32.9002"
+       id="rect19774-3-5-5"
+       width="108.35285"
+       height="576.69012"
+       x="1916.5688"
+       y="2243.1765" /></g></svg>

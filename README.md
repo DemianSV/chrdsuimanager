@@ -1,4 +1,4 @@
-# Charybdis Monitoring System UIManager 1.0.5
+# Charybdis Monitoring System UIManager 1.1.0
 
 The **Charybdis Monitoring System** project is an attempt to create a simple infrastructure and application monitoring system based on Zabbix's best practices while addressing its main weaknesses in terms of scalability and data storage.  
 **UIManager** is a component that implements a full-fledged user WEB interface for the monitoring system's functions.
@@ -82,6 +82,11 @@ Configuration can be done in two ways:
 >**HTTP**: Group of variables for the HTTP scope,  
 >**HOST**: Configuration parameter.
 
+**CHRDS_TLS_CERTPATH**: Path to the certificate for UI Manager connections,
+**CHRDS_TLS_KEYPATH**: Path to the private key for UI Manager connections,
+**CHRDS_TLS_KEYPASSWORD**: The password for the private key,
+**CHRDS_TLS_CAPATH**: Path to the CA certificate for HTTP server connections.
+
 **CHRDS_UIMANAGER_MODULEID**: Reserved module ID for UIManager,  
 **CHRDS_UIMANAGER_SPACEID**: Reserved space ID for UIManager,  
 **CHRDS_UIMANAGER_DATAMANAGERURL**: Array of DataManager API URLs.  
@@ -94,19 +99,13 @@ Configuration can be done in two ways:
 **CHRDS_HTTP_WRITETIMEOUT**: HTTP server write timeout,  
 **CHRDS_HTTP_RL**: Requests Limit, HTTP server incoming request limit per second,  
 **CHRDS_HTTP_TLS**: Enable TLS for HTTP server (true/false),  
-**CHRDS_HTTP_CERTPATH**: Path to the certificate for HTTP server connections,  
-**CHRDS_HTTP_KEYPATH**: Path to the private key for HTTP server connections,  
-**CHRDS_HTTP_CAPATH**: Path to the CA certificate for HTTP server connections,  
-**CHRDS_HTTP_CLIENTINSECURE**: Disable server certificate verification for outgoing connections (true/false).  
+**CHRDS_HTTP_TLS_SKIPVERIFY**: Disable certificate verification for TLS connections (true/false).  
 
 **CHRDS_DB_HOST**: Array of database node addresses, comma-separated (e.g., 127.0.0.1:9042,127.0.0.1:9043),  
 **CHRDS_DB_USERNAME**: Database username,  
 **CHRDS_DB_PASSWORD**: Database password,  
-**CHRDS_DB_TLS**: Enable TLS for database cluster interactions (true/false),  
-**CHRDS_DB_CERTPATH**: Path to the certificate for database connections,  
-**CHRDS_DB_KEYPATH**: Path to the private key for database connections,  
-**CHRDS_DB_CAPATH**: Path to the CA certificate for database connections,  
-**CHRDS_DB_HOSTVERIFICATION**: Enable HostVerification for database connections (true/false),  
+**CHRDS_DB_TLS**: Enable TLS for database cluster interactions (true/false),
+**CHRDS_DB_TLS_SKIPVERIFY**: Disable certificate verification for TLS connections (true/false),
 **CHRDS_DB_KEYSPACE**: KeySpace for the connection,  
 **CHRDS_DB_CONSISTENCY**: Consistency parameter for database data,  
 **CHRDS_DB_CONSISTENCYREAD**: Consistency parameter for database queries,  
@@ -121,10 +120,16 @@ Configuration can be done in two ways:
 
 ```json
 {
+	"TLS": {
+		"CERTPATH": "",
+		"KEYPATH": "",
+		"KEYPASSWORD": "",
+		"CAPATH": ""
+	},
 	"UIMANAGER": {
-		"MODULEID": "623a57c2-3df5-4287-ada5-82f7e4a0b5db",
+		"MODULЕID": "623a57c2-3df5-4287-ada5-82f7e4a0b5db",
 		"SPACEID": "17f0bd20-41cf-4801-a481-ff721a41fa93",
-		"DATAMANAGERURL": ["http://172.20.0.10:6006", "http://172.20.0.11:6006"]
+		"DATAMANAGERURL": ["https://172.30.0.10:6006"]
 	},
 	"HTTP": {
 		"HOST": "0.0.0.0",
@@ -133,23 +138,36 @@ Configuration can be done in two ways:
 		"WRITETIMEOUT": 30,
 		"RL": 100,
 		"TLS": false,
-		"CERTPATH": "",
-		"KEYPATH": "",
-		"CAPATH": "",
-		"CLIENTINSECURE": true
+		"SKIPVERIFY": true
 	},
 	"DB": {
-		"HOSTS": ["127.0.0.1:9042", "127.0.0.1:9043"],
+		"HOSTS": ["127.0.0.1:19042", "127.0.0.1:29042"],
 		"USERNAME": "chrds",
 		"PASSWORD": "",
-		"TLS": false,
-		"CERTPATH": "",
-		"KEYPATH": "",
-		"CAPATH": "",
-		"HOSTVERIFICATION": false,
+		"TLS": true,
+		"SKIPVERIFY": true,
 		"KEYSPACE": "chrds",
 		"CONSISTENCY": "Quorum",
+		"CONSISTENSYREAD": "One",
 		"TIMEOUT": 30000
 	}
 }
 ```
+
+## Using Grafana (1.0.5, 1.1.0)
+Create a user in the Cassandra database, for example **Grafana**, and give out the right only to read for the table **chrds.raw_data02**.  
+Install Grafana in any convenient way using the documentation from the official website (https://grafana.com/docs/grafana/latest/setup-grafana/installation/).  
+Turn on and configure Data Sources Plugin: **Apache Cassandra Datasource for Grafana**.
+
+<img width="1453" height="243" alt="Снимок экрана 2025-08-30 в 18 25 56" src="https://github.com/user-attachments/assets/ac9cc4f9-ea1e-4f4b-a314-7f161624c361" />
+
+Set up a plugin to connect to a database with an previously established UZ.  
+Create a dashboard on the metrics stored in the database using an example of a request:
+
+```sql
+SELECT space_id, value, totimestamp(maxtimeuuid(event_time)), space_description FROM chrds.raw_data02 WHERE space_id IN (65c6b051-10fb-4bd7-8c04-7fe478e55d13, 34bcd935-8e7a-4b79-b76b-352cf3ece91f) AND metric = 'system.cpu.util' AND synt_key IN ('${__from:date:YYYY.MM}', '${__to:date:YYYY.MM}') AND event_time > $__from and event_time < $__to
+```
+
+<img width="1134" height="874" alt="Снимок экрана 2025-09-13 в 10 31 56" src="https://github.com/user-attachments/assets/a2143064-11a2-4fc7-aa2e-f34a35e063c5" />
+
+<img width="1469" height="820" alt="Снимок экрана 2025-09-13 в 10 26 15" src="https://github.com/user-attachments/assets/b2ac7f9f-b7b8-454f-af06-ed785bb50f3b" />

@@ -17,6 +17,23 @@
             <div class="flex flex-col md6"><va-time-input class="mb-2 pl-2" v-model="dashboardStartTime" :label="$t('dashboard.message05')" clearable /></div>
             <div class="flex flex-col md6"><va-date-input class="mb-2 pr-2" v-model="dashboardStopDate" :month-names="$tm('calendar.monthnames')" :weekday-names="$tm('calendar.weekdaynames')" :first-weekday="$t('calendar.firstweekdays')" :label="$t('dashboard.message04')" clearable /></div>
             <div class="flex flex-col md6"><va-time-input class="mb-2 pl-2" v-model="dashboardStopTime" :label="$t('dashboard.message06')" clearable /></div>
+            <div class="flex flex-col md12">
+                <va-divider dashed>
+                    <span class="px-2">{{ $t('dashboard.message37') }}</span>
+                </va-divider>
+            </div>
+            <div class="flex flex-col md12">
+                <va-button-group grow>
+                    <va-button v-on:click="buttonClickInterval(3600)" class="mr-1">{{ $t('dashboard.message38') }}</va-button>
+                    <va-button v-on:click="buttonClickInterval(10800)" class="mr-1">{{ $t('dashboard.message39') }}</va-button>
+                    <va-button v-on:click="buttonClickInterval(21600)" class="mr-1">{{ $t('dashboard.message40') }}</va-button>
+                    <va-button v-on:click="buttonClickInterval(43200)" class="mr-1">{{ $t('dashboard.message41') }}</va-button>
+                    <va-button v-on:click="buttonClickInterval(86400)" class="mr-1">{{ $t('dashboard.message42') }}</va-button>
+                    <va-button v-on:click="buttonClickInterval(259200)">{{ $t('dashboard.message43') }}</va-button>
+                </va-button-group>
+            </div>
+            <div class="flex flex-col md12"><br></div>
+            <div class="flex flex-col md12"><va-input class="mb-2" v-model="dashboardInterval" :placeholder="$t('dashboard.message44')" :label="$t('dashboard.message45')" clearable /></div>
         </div>
     </va-modal>
     
@@ -34,6 +51,23 @@
                         <div class="flex flex-col md6"><va-time-input class="mb-2 pl-2" v-model="dashboardEditStartTime" :label="$t('dashboard.message05')" clearable /></div>
                         <div class="flex flex-col md6"><va-date-input class="mb-2 pr-2" v-model="dashboardEditStopDate" :month-names="$tm('calendar.monthnames')" :weekday-names="$tm('calendar.weekdaynames')" :first-weekday="$t('calendar.firstweekdays')" :label="$t('dashboard.message04')" clearable /></div>
                         <div class="flex flex-col md6"><va-time-input class="mb-2 pl-2" v-model="dashboardEditStopTime" :label="$t('dashboard.message06')" clearable /></div>
+                        <div class="flex flex-col md12">
+                        <va-divider dashed>
+                            <span class="px-2">{{ $t('dashboard.message37') }}</span>
+                        </va-divider>
+                        </div>
+                        <div class="flex flex-col md12">
+                            <va-button-group grow>
+                                <va-button v-on:click="buttonClickEditInterval(3600)" class="mr-1">{{ $t('dashboard.message38') }}</va-button>
+                                <va-button v-on:click="buttonClickEditInterval(10800)" class="mr-1">{{ $t('dashboard.message39') }}</va-button>
+                                <va-button v-on:click="buttonClickEditInterval(21600)" class="mr-1">{{ $t('dashboard.message40') }}</va-button>
+                                <va-button v-on:click="buttonClickEditInterval(43200)" class="mr-1">{{ $t('dashboard.message41') }}</va-button>
+                                <va-button v-on:click="buttonClickEditInterval(86400)" class="mr-1">{{ $t('dashboard.message42') }}</va-button>
+                                <va-button v-on:click="buttonClickEditInterval(259200)">{{ $t('dashboard.message43') }}</va-button>
+                            </va-button-group>
+                        </div>
+                        <div class="flex flex-col md12"><br></div>
+                        <div class="flex flex-col md12"><va-input class="mb-2" v-model="dashboardEditInterval" :placeholder="$t('dashboard.message44')" :label="$t('dashboard.message45')" clearable /></div>
                     </div>
                     <div class="md12">
                         <va-divider dashed>
@@ -45,14 +79,14 @@
                     </div>
                     <div class="flex layout md12 va-gutter-3" v-for="(chartData, index02) in dashboardsEdit[index01].chartdata" :key="index02">
                         <va-card stripe :stripe-color="stripeColorChart[index02]">
-                            <va-card-title>График {{ index02 + 1 }}</va-card-title>
+                            <va-card-title>{{ $t('dashboard.message46') }} {{ index02 + 1 }}</va-card-title>
                             <va-card-content>
-                                <div class="flex flex-col md12"><va-select class="mb-2" v-model="spaceValue[index01][index02]" :options="spaceOptions" v-on:update:model-value="spaceSelectUpdateValue(index01, index02)" :label="$t('dashboard.message29')" :placeholder="$t('dashboard.message30')" :no-options-text="$t('message.listempty')" /></div>
-                                <div class="flex flex-col md12"><va-select class="mb-2" v-model="metricValue[index01][index02]" :options="metricOptions[index01][index02]" :label="$t('dashboard.message31')" :placeholder="$t('dashboard.message32')" :no-options-text="$t('message.listempty')"></va-select></div>
+                                <div class="flex flex-col md12"><va-select class="mb-2" v-model="spaceValue[index01][index02]" :options="spaceOptions" v-on:update:model-value="spaceSelectUpdateValue(index01, index02)" :label="$t('dashboard.message29')" :placeholder="$t('dashboard.message30')" :no-options-text="$t('message.listempty')" searchable></va-select></div>
+                                <div class="flex flex-col md12"><va-select class="mb-2" v-model="metricValue[index01][index02]" :options="metricOptions[index01][index02]" :label="$t('dashboard.message31')" :placeholder="$t('dashboard.message32')" :no-options-text="$t('message.listempty')" searchable></va-select></div>
                                 <div class="flex flex-col md12"><va-select class="mb-2" v-model="graphtypeValue[index01][index02]" :options="graphtypeOptions" :placeholder="$t('dashboard.message33')" :label="$t('dashboard.message33')" :no-options-text="$t('message.listempty')"></va-select></div>
                                 <div class="flex flex-col md12"><va-color-input class="mb-2" v-model="dashboardsEdit[index01].chartdata[index02].graphcolor" :placeholder="$t('dashboard.message34')" :label="$t('dashboard.message34')" /></div>
                                 <div class="flex flex-col md12"><va-select class="mb-2" v-model="groupfuncValue[index01][index02]" :options="groupfuncOptions" :placeholder="$t('dashboard.message35')" :label="$t('dashboard.message35')" :no-options-text="$t('message.listempty')"></va-select></div>
-                                <div class="flex flex-col md12"><va-input class="mb-2" type="number" v-model="dashboardsEdit[index01].chartdata[index02].graphorder" :placeholder="$t('dashboard.message36')" :label="$t('dashboard.message36')" /></div>
+                                <div class="flex flex-col md12"><va-input class="mb-2" v-model="dashboardsEdit[index01].chartdata[index02].graphorder" :placeholder="$t('dashboard.message36')" :label="$t('dashboard.message36')" /></div>
                                 <div class="md12" align="center">
                                     <va-button icon="delete" v-bind:disabled="userBlock" v-on:click="buttonClickChartRemove(index01, index02)" class="mr-3" />
                                 </div>
@@ -87,6 +121,7 @@
     import { mapState } from 'vuex'
     import { Bar } from 'vue-chartjs'
     import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, LineElement, CategoryScale, LinearScale, LineController, PointElement } from 'chart.js'
+
     ChartJS.register(Title, Tooltip, Legend, BarElement, LineElement, CategoryScale, LinearScale, LineController, PointElement)
 
     export default {
@@ -121,12 +156,14 @@
                 dashboardStartTime: undefined,
                 dashboardStopDate: undefined,
                 dashboardStopTime: undefined,
+                dashboardInterval: undefined,
 
                 dashboardEditName: "",
                 dashboardEditStartDate: undefined,
                 dashboardEditStartTime: undefined,
                 dashboardEditStopDate: undefined,
                 dashboardEditStopTime: undefined,
+                dashboardEditInterval: undefined,
 
                 /* Переменные состояния модальных окон */
                 showModalCreate: false,
@@ -175,12 +212,23 @@
             }
         },
         methods: {
+            buttonClickInterval(sec) {
+                this.dashboardInterval = sec;
+                this.dashboardStartDate = undefined;
+                this.dashboardStartTime = undefined;
+            },
+            buttonClickEditInterval(sec) {
+                this.dashboardEditInterval = sec;
+                this.dashboardEditStartDate = undefined;
+                this.dashboardEditStartTime = undefined;
+            },
             buttonClickNew() {
                 this.dashboardName = "";
                 this.dashboardStartDate = undefined;
                 this.dashboardStopDate = undefined;
                 this.dashboardStartTime = undefined;
                 this.dashboardStopTime = undefined;
+                this.dashboardInterval = undefined;
 
                 this.showModalCreate = true;
             },
@@ -297,6 +345,12 @@
                     this.dashboardEditStopTime = new Date(this.dashboardsEdit[index].stoptime);
                 }
 
+                if (this.dashboardsEdit[index].interval == 0) {
+                    this.dashboardEditInterval = undefined;
+                } else {
+                    this.dashboardEditInterval = this.dashboardsEdit[index].interval;
+                }
+
                 /* Инициализация metricOptions и metricValue для формы */
                 if (vm.dashboardsEdit[index].chartdata != null) {
                     let chart01 = [];
@@ -361,8 +415,9 @@
             },
             putDashboardUpdate(index) {
                 let vm = this;
-                let dashboardStartDateTime = 0;
-                let dashboardStopDateTime = 0;
+                let dashboardStartDateTime = parseInt(0);
+                let dashboardStopDateTime = parseInt(0);
+                let dashboardIntervalTime = parseInt(0);
 
                 if (vm.dashboardEditStartDate != undefined && vm.dashboardEditStartTime == undefined) {
                     vm.showModalEdit[index] = true;
@@ -404,6 +459,18 @@
                         vm.showModalEdit[index] = true;
                         vm.$vaToast.init({ message: vm.$t('dashboard.message17'), color: 'warning' });
                         return;
+                    }
+                }
+                if (vm.dashboardEditInterval == undefined || vm.dashboardEditInterval == 0 || vm.dashboardEditInterval == "" || isNaN(parseInt(vm.dashboardEditInterval))) {
+                    dashboardStartDateTime = parseInt(0);
+                    dashboardIntervalTime = parseInt(0)
+                } else {
+                    if (vm.dashboardEditInterval < 0 || /^\d+$/.test(vm.dashboardEditInterval) == false) {
+                        vm.showModalEdit[index] = true;
+                        vm.$vaToast.init({ message: vm.$t('dashboard.message47'), color: 'warning' });
+                        return;
+                    } else {
+                        dashboardIntervalTime = parseInt(vm.dashboardEditInterval);
                     }
                 }
 
@@ -452,6 +519,7 @@
                     name: vm.dashboardEditName,
                     starttime: parseInt(dashboardStartDateTime),
                     stoptime: parseInt(dashboardStopDateTime),
+                    interval: parseInt(dashboardIntervalTime),
                     status: 1,
                     chartdata: vm.dashboardsEdit[index].chartdata
                 };
@@ -504,9 +572,10 @@
                 });
             },
             putDashboardCreate() {
-                const vm = this;
-                let dashboardStartDateTime = 0;
-                let dashboardStopDateTime = 0;
+                let vm = this;
+                let dashboardStartDateTime = parseInt(0);
+                let dashboardStopDateTime = parseInt(0);
+                let dashboardIntervalTime = parseInt(0);
 
                 if (vm.dashboardName == "") {
                     vm.showModalCreate = true;
@@ -551,8 +620,21 @@
                     }
                     if (dashboardStopDateTime - dashboardStartDateTime > 3 * 31 * 24 * 60 * 60 * 1000) {
                         vm.showModalCreate = true;
-                        vm.$vaToast.init({ message: vm.$t('dashboard.message17'), color: 'warning' });
+                        vm.$vaToast.init({ message: vm.$t('dashboard.message47'), color: 'warning' });
                         return;
+                    }
+                }
+
+                if (vm.dashboardInterval == undefined || vm.dashboardInterval == 0 || vm.dashboardInterval == "" || isNaN(parseInt(vm.dashboardInterval))) {
+                    dashboardStartDateTime = 0;
+                    dashboardIntervalTime = parseInt(0)
+                } else {
+                    if (vm.dashboardInterval < 0 || /^\d+$/.test(vm.dashboardInterval) == false) {
+                        vm.showModalCreate = true;
+                        vm.$vaToast.init({ message: vm.$t('dashboard.message47'), color: 'warning' });
+                        return;
+                    } else {
+                        dashboardIntervalTime = parseInt(vm.dashboardInterval);
                     }
                 }
 
@@ -560,6 +642,7 @@
                     name: vm.dashboardName,
                     starttime: parseInt(dashboardStartDateTime),
                     stoptime: parseInt(dashboardStopDateTime),
+                    interval: parseInt(dashboardIntervalTime),
                     status: 1,
                 };
                 $.ajax({
@@ -585,7 +668,7 @@
                 });
             },
             getDashboard() {
-                const vm = this;
+                let vm = this;
                 $.ajax({
                     url: "/api/v1/admin/dashboard/select?" + Math.random(),
                     type: "GET",
@@ -634,7 +717,7 @@
                 });
             },
             putChartData() {
-                const vm = this;
+                let vm = this;
                 if (vm.dashboards == null || vm.dashboards.length == 0) {
                     vm.innerLoading = false;
                     return;
@@ -669,17 +752,22 @@
                 this.putChartData();
             },
             spaceSelect() {
-                const vm = this;
+                let vm = this;
+                let dataPut = {
+                    pagesize: 0,
+                };
+
                 $.ajax({
                     url: "/api/v1/admin/space/select?" + Math.random(),
-                    type: "GET",
+                    type: "PUT",
                     dataType: "json",
+                    data: JSON.stringify(dataPut),
                     success: function (data) {
-                        if (data == null) {
-                            data = [];
+                        if (data.data == null) {
+                            data.data = [];
                         } else {
-                            if (data.length > 0) {
-                                data.forEach(function(item, i) {
+                            if (data.data.length > 0) {
+                                data.data.forEach(function(item, i) {
                                     vm.spaceOptions[i] = { text: item.description, value: item.id };
                                 });
                             }
@@ -689,7 +777,7 @@
                 });
             },
             spaceSelectUpdateValue(index01, index02) {
-                const vm = this;
+                let vm = this;
                 let dataPut = {
                     spaceid: this.spaceValue[index01][index02].value,
                 };
@@ -769,7 +857,7 @@
     }
 </script>
 <style>
-* {
-    --va-card-outlined-border: 1px solid var(--va-background-element);
-}
+    * {
+        --va-card-outlined-border: 1px solid var(--va-background-element);
+    }
 </style>

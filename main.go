@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -19,6 +20,8 @@ import (
 	"strings"
 	"time"
 
+	"chrdsuimanager/tlsutil"
+
 	jwt "github.com/dgrijalva/jwt-go"
 
 	"github.com/go-chi/chi/v5"
@@ -26,6 +29,10 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/go-chi/httprate"
 	"github.com/go-chi/jwtauth/v5"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/gocql/gocql"
 
@@ -40,7 +47,7 @@ var Index []byte
 
 const (
 	// Version
-	Version string = "1.0.5"
+	Version string = "1.1.0"
 	// LogFile
 	LogFile string = "chrdsuimanager.log"
 	// ConfigFile
@@ -72,6 +79,16 @@ type DBConnectObserverAT []DBConnectObserverT
 var DBStatus DBConnectObserverT
 var DBStatusA DBConnectObserverAT
 
+var (
+	httpDuration = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "http_request_duration_seconds",
+			Help: "Duration of HTTP requests in seconds",
+		},
+		[]string{"path", "status", "method", "func"},
+	)
+)
+
 func init() {
 	flag.StringVar(&FlagLog, "log", "stdout", "[-log file, stdout (default)]")
 	flag.Parse()
@@ -93,7 +110,7 @@ func init() {
 	chrdsclient.Conf.SpaceID = AppConfig.UIMANAGER.SPACEID
 	chrdsclient.Conf.ModuleID = AppConfig.UIMANAGER.MODULEID
 	chrdsclient.Conf.DataManagerURL = AppConfig.UIMANAGER.DATAMANAGERURL
-	chrdsclient.Conf.ClientInSecureSkipVerify = AppConfig.HTTP.CLIENTINSECURE
+	chrdsclient.Conf.ClientInSecureSkipVerify = AppConfig.HTTP.SKIPVERIFY
 	chrdsclient.Conf.DataManagerTimeOut = 1
 }
 
@@ -203,11 +220,30 @@ func main() {
 	}
 
 	if AppConfig.DB.TLS {
+		crt, err := tlsutil.LoadX509KeyPairWithPassword(AppConfig.TLS.CERTPATH, AppConfig.TLS.KEYPATH, []byte(AppConfig.TLS.KEYPASSWORD))
+		if err != nil {
+			log.Fatal("Failed to download the certificate (", err, ")!")
+			return
+		}
+		var crtPool *x509.CertPool
+		if AppConfig.TLS.CAPATH == "" {
+			crtPool = nil
+		} else {
+			crtPool = x509.NewCertPool()
+			if crtCA, err := os.ReadFile(AppConfig.TLS.CAPATH); err != nil {
+				log.Fatal("Failed to download CA certificate (", err, ")!")
+			} else if ok := crtPool.AppendCertsFromPEM(crtCA); !ok {
+				log.Fatal("It was not possible to apply CA certificate!")
+			}
+		}
+
 		cluster.SslOpts = &gocql.SslOptions{
-			EnableHostVerification: AppConfig.DB.HOSTVERIFICATION,
-			CertPath:               AppConfig.DB.CERTPATH,
-			KeyPath:                AppConfig.DB.KEYPATH,
-			CaPath:                 AppConfig.DB.CAPATH,
+			Config: &tls.Config{
+				RootCAs:            crtPool,
+				Certificates:       []tls.Certificate{crt},
+				MinVersion:         tls.VersionTLS12,
+				InsecureSkipVerify: AppConfig.DB.SKIPVERIFY,
+			},
 		}
 	}
 
@@ -271,7 +307,7 @@ func main() {
 
 		r.Route("/user", func(r chi.Router) {
 			r.Get("/count", getUserCount)
-			r.Get("/select", getUserSelect)
+			r.Put("/select", putUserSelect)
 			r.Put("/update", putUserUpdate)
 			r.Put("/remove", putUserRemove)
 			r.Put("/create", putUserCreate)
@@ -279,7 +315,7 @@ func main() {
 
 		r.Route("/registration", func(r chi.Router) {
 			r.Get("/count", getModuleCount)
-			r.Get("/select", getModuleSelect)
+			r.Put("/select", putModuleSelect)
 			r.Put("/update", putModuleUpdate)
 			r.Put("/remove", putModuleRemove)
 			r.Put("/create", putModuleCreate)
@@ -287,7 +323,7 @@ func main() {
 
 		r.Route("/task", func(r chi.Router) {
 			r.Get("/count", getTaskCount)
-			r.Get("/select", getTaskSelect)
+			r.Put("/select", putTaskSelect)
 			r.Put("/update", putTaskUpdate)
 			r.Put("/remove", putTaskRemove)
 			r.Put("/create", putTaskCreate)
@@ -295,7 +331,7 @@ func main() {
 
 		r.Route("/space", func(r chi.Router) {
 			r.Get("/count", getSpaceCount)
-			r.Get("/select", getSpaceSelect)
+			r.Put("/select", putSpaceSelect)
 			r.Put("/update", putSpaceUpdate)
 			r.Put("/remove", putSpaceRemove)
 			r.Put("/create", putSpaceCreate)
@@ -308,13 +344,11 @@ func main() {
 		})
 
 		r.Route("/rawdata", func(r chi.Router) {
-			r.Get("/count", getRawDataCount)
 			r.Put("/select", putRawDataSelect)
 			r.Put("/metric/select", putMetricDataSelect)
 		})
 
 		r.Route("/rawtext", func(r chi.Router) {
-			r.Get("/count", getRawTextCount)
 			r.Put("/select", putRawTextSelect)
 			r.Put("/metric/select", putMetricTextSelect)
 		})
@@ -404,26 +438,31 @@ func main() {
 		fileServer(r, "/assets", http.FS(fs))
 	}
 
+	r.Mount("/metrics", promhttp.Handler()) // Prometheus metrics
+
 	if AppConfig.HTTP.TLS { // HTTPS connection
-		crt, err := tls.LoadX509KeyPair(AppConfig.HTTP.CERTPATH, AppConfig.HTTP.KEYPATH)
+		// crt, err := tls.LoadX509KeyPair(AppConfig.TLS.CERTPATH, AppConfig.TLS.KEYPATH)
+		crt, err := tlsutil.LoadX509KeyPairWithPassword(AppConfig.TLS.CERTPATH, AppConfig.TLS.KEYPATH, []byte(AppConfig.TLS.KEYPASSWORD))
 		if err != nil {
 			log.Fatal("Failed to download the certificate (", err, ")!")
 			return
 		}
 		var crtPool *x509.CertPool
-		if AppConfig.HTTP.CAPATH == "" {
+		if AppConfig.TLS.CAPATH == "" {
 			crtPool = nil
 		} else {
 			crtPool = x509.NewCertPool()
-			if crtCA, err := os.ReadFile(AppConfig.HTTP.CAPATH); err != nil {
+			if crtCA, err := os.ReadFile(AppConfig.TLS.CAPATH); err != nil {
 				log.Fatal("Failed to download CA certificate (", err, ")!")
 			} else if ok := crtPool.AppendCertsFromPEM(crtCA); !ok {
 				log.Fatal("It was not possible to apply CA certificate!")
 			}
 		}
 		tlsConfig := &tls.Config{
-			RootCAs:      crtPool,
-			Certificates: []tls.Certificate{crt},
+			RootCAs:            crtPool,
+			Certificates:       []tls.Certificate{crt},
+			InsecureSkipVerify: AppConfig.HTTP.SKIPVERIFY,
+			MinVersion:         tls.VersionTLS12,
 		}
 
 		httpServer := &http.Server{Addr: AppConfig.HTTP.HOST + ":" + AppConfig.HTTP.PORT,
@@ -465,6 +504,8 @@ func webTmpl(w http.ResponseWriter, r *http.Request) {
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
 	_, claims, _ := jwtauth.FromContext(r.Context())
 	log.Printf("User %v requested the API version!", claims["username"])
 
@@ -482,9 +523,16 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 		jsonAPI, err := json.Marshal(version)
 		if err != nil {
 			log.Print("JSON ERROR (" + err.Error() + ")!")
+
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/version", "500", "GET", "getVersion").Set(duration)
+
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		duration := time.Since(start).Seconds()
+		httpDuration.WithLabelValues("/version", "200", "GET", "getVersion").Set(duration)
+
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(jsonAPI)
 	}
@@ -586,288 +634,34 @@ func allowOriginFunc(r *http.Request, origin string) bool {
 	return false
 }
 
-func getRawDataCount(w http.ResponseWriter, r *http.Request) {
-	versionAPI := chi.URLParam(r, "version")
-	_, claims, _ := jwtauth.FromContext(r.Context())
-	if claims["role"] == "superadmin" || claims["role"] == "admin" || claims["role"] == "user" {
-		if versionAPI == "1" {
-			var responseCount ResponseCountT
-			ctx := context.Background()
-			var scanner gocql.Scanner
-
-			switch claims["role"] {
-			case "superadmin":
-				scanner = Session.Query(`SELECT count(*) FROM raw_data01`).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
-			case "admin":
-				var spaceList []string
-				scanner = Session.Query(`SELECT space_id FROM user_space WHERE user_id = ?`, claims["userid"]).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
-				for scanner.Next() {
-					var spaceID string
-					err := scanner.Scan(&spaceID)
-					if err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					} else {
-						spaceList = append(spaceList, spaceID)
-					}
-				}
-
-				args := []interface{}{}
-				for _, item := range spaceList {
-					args = append(args, item)
-				}
-				syntKeyList := makeDateList(1)
-				for _, item := range syntKeyList {
-					args = append(args, item)
-				}
-
-				if len(spaceList) > 0 {
-					scanner = Session.Query(`SELECT count(*) FROM raw_data01 WHERE space_id IN (?`+strings.Repeat(", ?", len(spaceList)-1)+`) AND synt_key IN (?`+strings.Repeat(", ?", len(syntKeyList)-1)+`)`,
-						args...).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
-				} else {
-					responseCount.Count = 0
-					responseCountJSON, err := json.Marshal(responseCount)
-					if err != nil {
-						log.Print("JSON MARSHAL ERROR (" + err.Error() + ")!")
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					} else {
-						w.Header().Set("Content-Type", "application/json")
-						w.Write(responseCountJSON)
-						return
-					}
-				}
-			default:
-				var spaceList []string
-				scanner = Session.Query(`SELECT space_id FROM user_space WHERE user_id = ?`, claims["ownerid"]).WithContext(ctx).Iter().Scanner()
-				for scanner.Next() {
-					var spaceID string
-					err := scanner.Scan(&spaceID)
-					if err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					} else {
-						spaceList = append(spaceList, spaceID)
-					}
-				}
-
-				args := []interface{}{}
-				for _, item := range spaceList {
-					args = append(args, item)
-				}
-				syntKeyList := makeDateList(1)
-				for _, item := range syntKeyList {
-					args = append(args, item)
-				}
-
-				if len(spaceList) > 0 {
-					scanner = Session.Query(`SELECT count(*) FROM raw_data01 WHERE space_id IN (?`+strings.Repeat(", ?", len(spaceList)-1)+`) AND synt_key IN (?`+strings.Repeat(", ?", len(syntKeyList)-1)+`)`,
-						args...).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
-				} else {
-					responseCount.Count = 0
-					responseCountJSON, err := json.Marshal(responseCount)
-					if err != nil {
-						log.Print("JSON MARSHAL ERROR (" + err.Error() + ")!")
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					} else {
-						w.Header().Set("Content-Type", "application/json")
-						w.Write(responseCountJSON)
-						return
-					}
-				}
-			}
-			for scanner.Next() {
-				var count int = 0
-				err := scanner.Scan(&count)
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				} else {
-					responseCount.Count = count
-					responseCountJSON, err := json.Marshal(responseCount)
-					if err != nil {
-						log.Print("JSON MARSHAL ERROR (" + err.Error() + ")!")
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					} else {
-						w.Header().Set("Content-Type", "application/json")
-						w.Write(responseCountJSON)
-						return
-					}
-				}
-			}
-			if err := scanner.Err(); err != nil {
-				log.Print(err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-	} else {
-		w.WriteHeader(http.StatusForbidden)
-		return
-	}
-}
-
-func getRawTextCount(w http.ResponseWriter, r *http.Request) {
-	versionAPI := chi.URLParam(r, "version")
-	_, claims, _ := jwtauth.FromContext(r.Context())
-	if claims["role"] == "superadmin" || claims["role"] == "admin" || claims["role"] == "user" {
-		if versionAPI == "1" {
-			var responseCount ResponseCountT
-			ctx := context.Background()
-			var scanner gocql.Scanner
-
-			switch claims["role"] {
-			case "superadmin":
-				scanner = Session.Query(`SELECT count(*) FROM raw_text01`).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
-			case "admin":
-				var spaceList []string
-				scanner = Session.Query(`SELECT space_id FROM user_space WHERE user_id = ?`, claims["userid"]).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
-				for scanner.Next() {
-					var spaceID string
-					err := scanner.Scan(&spaceID)
-					if err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					} else {
-						spaceList = append(spaceList, spaceID)
-					}
-				}
-
-				args := []interface{}{}
-				for _, item := range spaceList {
-					args = append(args, item)
-				}
-				syntKeyList := makeDateList(1)
-				for _, item := range syntKeyList {
-					args = append(args, item)
-				}
-
-				if len(spaceList) > 0 {
-					scanner = Session.Query(`SELECT count(*) FROM raw_text01 WHERE space_id IN (?`+strings.Repeat(", ?", len(spaceList)-1)+`) AND synt_key IN (?`+strings.Repeat(", ?", len(syntKeyList)-1)+`)`, args...).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
-				} else {
-					responseCount.Count = 0
-					responseCountJSON, err := json.Marshal(responseCount)
-					if err != nil {
-						log.Print("JSON MARSHAL ERROR (" + err.Error() + ")!")
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					} else {
-						w.Header().Set("Content-Type", "application/json")
-						w.Write(responseCountJSON)
-						return
-					}
-				}
-			default:
-				var spaceList []string
-				scanner = Session.Query(`SELECT space_id FROM user_space WHERE user_id = ?`, claims["ownerid"]).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
-				for scanner.Next() {
-					var spaceID string
-					err := scanner.Scan(&spaceID)
-					if err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					} else {
-						spaceList = append(spaceList, spaceID)
-					}
-				}
-
-				args := []interface{}{}
-				for _, item := range spaceList {
-					args = append(args, item)
-				}
-				syntKeyList := makeDateList(1)
-				for _, item := range syntKeyList {
-					args = append(args, item)
-				}
-
-				if len(spaceList) > 0 {
-					scanner = Session.Query(`SELECT count(*) FROM raw_text01 WHERE space_id IN (?`+strings.Repeat(", ?", len(spaceList)-1)+`) AND synt_key IN (?`+strings.Repeat(", ?", len(syntKeyList)-1)+`)`, args...).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
-				} else {
-					responseCount.Count = 0
-					responseCountJSON, err := json.Marshal(responseCount)
-					if err != nil {
-						log.Print("JSON MARSHAL ERROR (" + err.Error() + ")!")
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					} else {
-						w.Header().Set("Content-Type", "application/json")
-						w.Write(responseCountJSON)
-						return
-					}
-				}
-			}
-			for scanner.Next() {
-				var count int = 0
-				err := scanner.Scan(&count)
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				} else {
-					responseCount.Count = count
-					responseCountJSON, err := json.Marshal(responseCount)
-					if err != nil {
-						log.Print("JSON MARSHAL ERROR (" + err.Error() + ")!")
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					} else {
-						w.Header().Set("Content-Type", "application/json")
-						w.Write(responseCountJSON)
-						return
-					}
-				}
-			}
-			if err := scanner.Err(); err != nil {
-				log.Print(err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-	} else {
-		w.WriteHeader(http.StatusForbidden)
-		return
-	}
-}
-
 func putRawTextSelect(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
 	_, claims, _ := jwtauth.FromContext(r.Context())
 	log.Printf("User %v requested raw_text data!", claims["username"])
 	go chrdsclient.Log("log", fmt.Sprintf("User %v requested raw_text data", claims["username"]))
 
-	type ResponseRawTextPageT struct {
-		DateMin    int64 `json:"datemin"`
-		DateMax    int64 `json:"datemax"`
-		DataCount  int64 `json:"datacount"`
-		PageCount  int64 `json:"pagecount"`
-		PageCurent int64 `json:"pagecurent"`
-	}
 	type ResponseRawTextDataT struct {
 		SpaceID    string `json:"spaceid"`
 		Metric     string `json:"metric"`
 		CreateTime int64  `json:"createtime"`
 		EventTime  int64  `json:"eventtime"`
-		Status     int    `json:"status"`
 		Value      string `json:"value"`
 		Object     string `json:"object"`
 		SpaceDesc  string `json:"spacedesc"`
 	}
 	type ResponseRawTextDataAT []ResponseRawTextDataT
 	type ResponseRawTextT struct {
-		Data ResponseRawTextDataAT `json:"data"`
-		Page ResponseRawTextPageT  `json:"page"`
+		Data        ResponseRawTextDataAT `json:"data"`
+		CurrentPage string                `json:"current"`
+		NextPage    string                `json:"next"`
 	}
 
 	type RequestT struct {
-		SpaceID    string `json:"spaceid"`
-		Metric     string `json:"metric"`
-		PageCurent int64  `json:"pagecurent"`
+		SpaceID     string `json:"spaceid"`
+		Metric      string `json:"metric"`
+		CurrentPage string `json:"current"`
+		PageSize    int    `json:"pagesize"`
 	}
 
 	var spaceDesc string
@@ -879,6 +673,10 @@ func putRawTextSelect(w http.ResponseWriter, r *http.Request) {
 			defer r.Body.Close()
 			if err != nil {
 				go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
+
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawtext/select", "500", "PUT", "putRawTextSelect").Set(duration)
+
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -887,144 +685,130 @@ func putRawTextSelect(w http.ResponseWriter, r *http.Request) {
 			if err := json.Unmarshal(b, &request); err != nil {
 				log.Print("JSON UNMARSHAL ERROR (" + err.Error() + ")!")
 				go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
+
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawtext/select", "500", "PUT", "putRawTextSelect").Set(duration)
+
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 
+			pageSize := max(request.PageSize, 0)
+
 			var responseRawTextData ResponseRawTextDataT
 			var responseRawTextDataA ResponseRawTextDataAT
-			var responseRawTextPage ResponseRawTextPageT
+			var pageState []byte
+
+			if request.CurrentPage != "" {
+				var err error
+				pageState, err = base64.StdEncoding.DecodeString(request.CurrentPage)
+				if err != nil {
+					duration := time.Since(start).Seconds()
+					httpDuration.WithLabelValues("/rawdata/select", "500", "PUT", "putRawDataSelect").Set(duration)
+
+					log.Print("CurrentPage decode ERROR (" + err.Error() + ")!")
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+			}
 
 			ctx := context.Background()
 			var scanner gocql.Scanner
-			{
-				scannerSpace := Session.Query(`SELECT description FROM space WHERE id = ?`, request.SpaceID).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
-				for scannerSpace.Next() {
-					err := scannerSpace.Scan(&spaceDesc)
-					if err != nil {
-						log.Print(err)
-					}
-				}
+			var iter *gocql.Iter
 
-				args := []interface{}{}
-				args = append(args, request.SpaceID)
-				if request.Metric != "" {
-					args = append(args, request.Metric)
-				}
-				syntKeyList := makeDateList(1)
-				for _, item := range syntKeyList {
-					args = append(args, item)
-				}
-
-				if request.Metric != "" {
-					scanner = Session.Query(`SELECT count(*), min(event_time), max(event_time) FROM raw_text02 WHERE space_id = ? AND metric = ? AND synt_key IN (?`+strings.Repeat(", ?", len(syntKeyList)-1)+`)`, args...).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
-				} else {
-					scanner = Session.Query(`SELECT count(*), min(event_time), max(event_time) FROM raw_text01 WHERE space_id = ? AND synt_key IN (?`+strings.Repeat(", ?", len(syntKeyList)-1)+`)`, args...).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
-				}
-				for scanner.Next() {
-					var dataCount int64
-					var dateMin int64
-					var dateMax int64
-
-					err := scanner.Scan(&dataCount, &dateMin, &dateMax)
-					if err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
-						go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
-						return
-					} else {
-						responseRawTextPage.DataCount = dataCount
-
-						var pageSize int64 = 24 * 60 * 60 * 1000
-						pageCount := int64((dateMax - dateMin) / pageSize)
-						if pageCount < 2 {
-							responseRawTextPage.PageCount = 1
-							responseRawTextPage.PageCurent = 1
-							responseRawTextPage.DateMin = dateMin
-							responseRawTextPage.DateMax = dateMax
-						} else {
-							responseRawTextPage.PageCount = pageCount
-							responseRawTextPage.PageCurent = request.PageCurent
-							responseRawTextPage.DateMin = dateMax - (pageSize * request.PageCurent) + 1
-							responseRawTextPage.DateMax = dateMax - (pageSize * request.PageCurent) + pageSize
-							if pageCount == request.PageCurent {
-								responseRawTextPage.DateMin = dateMin
-							}
-						}
-
-					}
-				}
-
-				if err := scanner.Err(); err != nil {
+			scannerSpace := Session.Query(`SELECT description FROM space WHERE id = ?`, request.SpaceID).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
+			for scannerSpace.Next() {
+				err := scannerSpace.Scan(&spaceDesc)
+				if err != nil {
 					log.Print(err)
-					w.WriteHeader(http.StatusInternalServerError)
-					go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
-					return
 				}
 			}
 
-			{
-				args := []interface{}{}
+			if request.Metric != "" {
+				iter = Session.Query(`SELECT space_id, metric, create_time, event_time, value, object FROM raw_text WHERE space_id = ? AND metric = ? AND event_time > toUnixTimestamp(now()) - 2592000000`, request.SpaceID, request.Metric).WithContext(ctx).Consistency(ConsistencyRead).PageSize(pageSize).PageState(pageState).Iter()
+			} else {
+				log.Print("Sample metric not defined")
+				go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
 
-				if request.Metric != "" {
-					args = append(args, request.SpaceID, request.Metric, responseRawTextPage.DateMin, responseRawTextPage.DateMax)
-				} else {
-					args = append(args, request.SpaceID, responseRawTextPage.DateMin, responseRawTextPage.DateMax)
-				}
-				syntKeyList := makeDateList(1)
-				for _, item := range syntKeyList {
-					args = append(args, item)
-				}
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawtext/select", "500", "PUT", "putRawTextSelect").Set(duration)
 
-				if request.Metric != "" {
-					scanner = Session.Query(`SELECT space_id, metric, create_time, event_time, status, value, object FROM raw_text02 WHERE space_id = ? AND metric = ? AND event_time >= ? AND event_time <= ? AND synt_key IN (?`+strings.Repeat(", ?", len(syntKeyList)-1)+`)`, args...).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
-				} else {
-					scanner = Session.Query(`SELECT space_id, metric, create_time, event_time, status, value, object FROM raw_text01 WHERE space_id = ? AND event_time >= ? AND event_time <= ? AND synt_key IN (?`+strings.Repeat(", ?", len(syntKeyList)-1)+`)`, args...).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
-				}
-				for scanner.Next() {
-					var spaceID string
-					var metric string
-					var createTime int64
-					var eventTime int64
-					var status int
-					var value string
-					var object string
-
-					err := scanner.Scan(&spaceID, &metric, &createTime, &eventTime, &status, &value, &object)
-					if err != nil {
-						go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					} else {
-						responseRawTextData.SpaceID = spaceID
-						responseRawTextData.Metric = metric
-						responseRawTextData.CreateTime = createTime
-						responseRawTextData.EventTime = eventTime
-						responseRawTextData.Status = status
-						responseRawTextData.Value = value
-						responseRawTextData.Object = object
-						responseRawTextData.SpaceDesc = spaceDesc
-
-						responseRawTextDataA = append(responseRawTextDataA, responseRawTextData)
-					}
-				}
-
-				if err := scanner.Err(); err != nil {
-					log.Print(err)
-					go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
+				w.WriteHeader(http.StatusInternalServerError)
+				return
 			}
+
 			var responseRawText ResponseRawTextT
+
+			if request.PageSize > 0 {
+				nextPageState := iter.PageState()
+				if len(nextPageState) > 0 {
+					responseRawText.NextPage = base64.StdEncoding.EncodeToString(nextPageState)
+				} else {
+					responseRawText.NextPage = ""
+				}
+				responseRawText.CurrentPage = request.CurrentPage
+
+				scanner = iter.Scanner()
+			}
+
+			for scanner.Next() {
+				var spaceID string
+				var metric string
+				var createTime int64
+				var eventTime int64
+				var value string
+				var object string
+
+				err := scanner.Scan(&spaceID, &metric, &createTime, &eventTime, &value, &object)
+				if err != nil {
+					go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
+
+					duration := time.Since(start).Seconds()
+					httpDuration.WithLabelValues("/rawtext/select", "500", "PUT", "putRawTextSelect").Set(duration)
+
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				} else {
+					responseRawTextData.SpaceID = spaceID
+					responseRawTextData.Metric = metric
+					responseRawTextData.CreateTime = createTime
+					responseRawTextData.EventTime = eventTime
+					responseRawTextData.Value = value
+					responseRawTextData.Object = object
+					responseRawTextData.SpaceDesc = spaceDesc
+
+					responseRawTextDataA = append(responseRawTextDataA, responseRawTextData)
+				}
+			}
+
+			if err := scanner.Err(); err != nil {
+				log.Print(err)
+				go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
+
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawtext/select", "500", "PUT", "putRawTextSelect").Set(duration)
+
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
 			responseRawText.Data = responseRawTextDataA
-			responseRawText.Page = responseRawTextPage
+
 			responseJSON, err := json.Marshal(responseRawText)
 			if err != nil {
 				log.Print("JSON MARSHAL ERROR (" + err.Error() + ")!")
 				go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
+
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawtext/select", "500", "PUT", "putRawTextSelect").Set(duration)
+
 				w.WriteHeader(http.StatusInternalServerError)
 			} else {
 				go chrdsclient.Metric("httpstatus", float32(http.StatusOK))
+
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawtext/select", "200", "PUT", "putRawTextSelect").Set(duration)
+
 				w.Header().Set("Content-Type", "application/json")
 				w.Write(responseJSON)
 				return
@@ -1032,47 +816,51 @@ func putRawTextSelect(w http.ResponseWriter, r *http.Request) {
 		} else {
 			log.Print("Failed to choose the data!")
 			go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
+
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/rawtext/select", "500", "PUT", "putRawTextSelect").Set(duration)
+
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 	} else {
+		duration := time.Since(start).Seconds()
+		httpDuration.WithLabelValues("/rawtext/select", "403", "PUT", "putRawTextSelect").Set(duration)
+
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
 }
 
 func putRawDataSelect(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
 	_, claims, _ := jwtauth.FromContext(r.Context())
 	log.Printf("User %v requested raw_data data!", claims["username"])
 	go chrdsclient.Log("log", fmt.Sprintf("User %v requested raw_data data", claims["username"]))
 
-	type ResponseRawDataPageT struct {
-		DateMin    int64 `json:"datemin"`
-		DateMax    int64 `json:"datemax"`
-		DataCount  int64 `json:"datacount"`
-		PageCount  int64 `json:"pagecount"`
-		PageCurent int64 `json:"pagecurent"`
-	}
 	type ResponseRawDataDataT struct {
-		SpaceID    string  `json:"spaceid"`
-		Metric     string  `json:"metric"`
-		CreateTime int64   `json:"createtime"`
-		EventTime  int64   `json:"eventtime"`
-		Status     int     `json:"status"`
-		Value      float32 `json:"value"`
-		Object     string  `json:"object"`
-		SpaceDesc  string  `json:"spacedesc"`
+		SpaceID    string            `json:"spaceid"`
+		Metric     string            `json:"metric"`
+		CreateTime int64             `json:"createtime"`
+		EventTime  int64             `json:"eventtime"`
+		Value      float32           `json:"value"`
+		Object     string            `json:"object"`
+		SpaceDesc  string            `json:"spacedesc"`
+		Labels     map[string]string `json:"labels"`
 	}
 	type ResponseRawDataDataAT []ResponseRawDataDataT
 	type ResponseRawDataT struct {
-		Data ResponseRawDataDataAT `json:"data"`
-		Page ResponseRawDataPageT  `json:"page"`
+		Data        ResponseRawDataDataAT `json:"data"`
+		CurrentPage string                `json:"current"`
+		NextPage    string                `json:"next"`
 	}
 
 	type RequestT struct {
-		SpaceID    string `json:"spaceid"`
-		Metric     string `json:"metric"`
-		PageCurent int64  `json:"pagecurent"`
+		SpaceID     string `json:"spaceid"`
+		Metric      string `json:"metric"`
+		CurrentPage string `json:"current"`
+		PageSize    int    `json:"pagesize"`
 	}
 
 	var spaceDesc string
@@ -1084,6 +872,10 @@ func putRawDataSelect(w http.ResponseWriter, r *http.Request) {
 			defer r.Body.Close()
 			if err != nil {
 				go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
+
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawdata/select", "500", "PUT", "putRawDataSelect").Set(duration)
+
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -1092,161 +884,158 @@ func putRawDataSelect(w http.ResponseWriter, r *http.Request) {
 			if err := json.Unmarshal(b, &request); err != nil {
 				log.Print("JSON UNMARSHAL ERROR (" + err.Error() + ")!")
 				go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
+
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawdata/select", "500", "PUT", "putRawDataSelect").Set(duration)
+
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 
+			pageSize := max(request.PageSize, 0)
+
 			var responseRawDataData ResponseRawDataDataT
 			var responseRawDataDataA ResponseRawDataDataAT
-			var responseRawDataPage ResponseRawDataPageT
+			var pageState []byte
+
+			if request.CurrentPage != "" {
+				var err error
+				pageState, err = base64.StdEncoding.DecodeString(request.CurrentPage)
+				if err != nil {
+					duration := time.Since(start).Seconds()
+					httpDuration.WithLabelValues("/rawdata/select", "500", "PUT", "putRawDataSelect").Set(duration)
+
+					log.Print("CurrentPage decode ERROR (" + err.Error() + ")!")
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+			}
 
 			ctx := context.Background()
 			var scanner gocql.Scanner
-			{
-				scannerSpace := Session.Query(`SELECT description FROM space WHERE id = ?`, request.SpaceID).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
-				for scannerSpace.Next() {
-					err := scannerSpace.Scan(&spaceDesc)
-					if err != nil {
-						log.Print(err)
-					}
-				}
+			var iter *gocql.Iter
 
-				args := []interface{}{}
-				args = append(args, request.SpaceID)
-				if request.Metric != "" {
-					args = append(args, request.Metric)
-				}
-				syntKeyList := makeDateList(1)
-				for _, item := range syntKeyList {
-					args = append(args, item)
-				}
-
-				if request.Metric != "" {
-					scanner = Session.Query(`SELECT count(*), min(event_time), max(event_time) FROM raw_data02 WHERE space_id = ? AND metric = ? AND synt_key IN (?`+strings.Repeat(", ?", len(syntKeyList)-1)+`)`, args...).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
-				} else {
-					scanner = Session.Query(`SELECT count(*), min(event_time), max(event_time) FROM raw_data01 WHERE space_id = ? AND synt_key IN (?`+strings.Repeat(", ?", len(syntKeyList)-1)+`)`, args...).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
-				}
-				for scanner.Next() {
-					var dataCount int64
-					var dateMin int64
-					var dateMax int64
-
-					err := scanner.Scan(&dataCount, &dateMin, &dateMax)
-					if err != nil {
-						go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					} else {
-						responseRawDataPage.DataCount = dataCount
-
-						var pageSize int64 = 24 * 60 * 60 * 1000
-						pageCount := int64((dateMax - dateMin) / pageSize)
-						if pageCount < 2 {
-							responseRawDataPage.PageCount = 1
-							responseRawDataPage.PageCurent = 1
-							responseRawDataPage.DateMin = dateMin
-							responseRawDataPage.DateMax = dateMax
-						} else {
-							responseRawDataPage.PageCount = pageCount
-							responseRawDataPage.PageCurent = request.PageCurent
-							responseRawDataPage.DateMin = dateMax - (pageSize * request.PageCurent) + 1
-							responseRawDataPage.DateMax = dateMax - (pageSize * request.PageCurent) + pageSize
-							if pageCount == request.PageCurent {
-								responseRawDataPage.DateMin = dateMin
-							}
-						}
-
-					}
-				}
-
-				if err := scanner.Err(); err != nil {
+			scannerSpace := Session.Query(`SELECT description FROM space WHERE id = ?`, request.SpaceID).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
+			for scannerSpace.Next() {
+				err := scannerSpace.Scan(&spaceDesc)
+				if err != nil {
 					log.Print(err)
-					go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
-					w.WriteHeader(http.StatusInternalServerError)
-					return
 				}
-
 			}
 
-			{
-				args := []interface{}{}
-				if request.Metric != "" {
-					args = append(args, request.SpaceID, request.Metric, responseRawDataPage.DateMin, responseRawDataPage.DateMax)
-				} else {
-					args = append(args, request.SpaceID, responseRawDataPage.DateMin, responseRawDataPage.DateMax)
-				}
-				syntKeyList := makeDateList(1)
-				for _, item := range syntKeyList {
-					args = append(args, item)
-				}
+			if request.Metric != "" {
+				iter = Session.Query(`SELECT space_id, metric, create_time, event_time, value, object, labels FROM raw_data WHERE space_id = ? AND metric = ? AND event_time > toUnixTimestamp(now()) - 2592000000`, request.SpaceID, request.Metric).WithContext(ctx).Consistency(ConsistencyRead).PageSize(pageSize).PageState(pageState).Iter()
+			} else {
+				log.Print("Sample metric not defined")
+				go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
 
-				if request.Metric != "" {
-					scanner = Session.Query(`SELECT space_id, metric, create_time, event_time, status, value, object FROM raw_data02 WHERE space_id = ? AND metric = ? AND event_time >= ? AND event_time <= ? AND synt_key IN (?`+strings.Repeat(", ?", len(syntKeyList)-1)+`)`, args...).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
-				} else {
-					scanner = Session.Query(`SELECT space_id, metric, create_time, event_time, status, value, object FROM raw_data01 WHERE space_id = ? AND event_time >= ? AND event_time <= ? AND synt_key IN (?`+strings.Repeat(", ?", len(syntKeyList)-1)+`)`, args...).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
-				}
-				for scanner.Next() {
-					var spaceID string
-					var metric string
-					var createTime int64
-					var eventTime int64
-					var status int
-					var value float32
-					var object string
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawdata/select", "500", "PUT", "putRawDataSelect").Set(duration)
 
-					err := scanner.Scan(&spaceID, &metric, &createTime, &eventTime, &status, &value, &object)
-					if err != nil {
-						go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					} else {
-						responseRawDataData.SpaceID = spaceID
-						responseRawDataData.Metric = metric
-						responseRawDataData.CreateTime = createTime
-						responseRawDataData.EventTime = eventTime
-						responseRawDataData.Status = status
-						responseRawDataData.Value = value
-						responseRawDataData.Object = object
-						responseRawDataData.SpaceDesc = spaceDesc
-
-						responseRawDataDataA = append(responseRawDataDataA, responseRawDataData)
-					}
-				}
-
-				if err := scanner.Err(); err != nil {
-					log.Print(err)
-					w.WriteHeader(http.StatusInternalServerError)
-					go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
-					return
-				}
+				w.WriteHeader(http.StatusInternalServerError)
+				return
 			}
+
 			var responseRawData ResponseRawDataT
+
+			if request.PageSize > 0 {
+				nextPageState := iter.PageState()
+				if len(nextPageState) > 0 {
+					responseRawData.NextPage = base64.StdEncoding.EncodeToString(nextPageState)
+				} else {
+					responseRawData.NextPage = ""
+				}
+				responseRawData.CurrentPage = request.CurrentPage
+
+				scanner = iter.Scanner()
+			}
+
+			for scanner.Next() {
+				var spaceID string
+				var metric string
+				var createTime int64
+				var eventTime int64
+				var value float32
+				var object string
+				var labels map[string]string
+
+				err := scanner.Scan(&spaceID, &metric, &createTime, &eventTime, &value, &object, &labels)
+				if err != nil {
+					go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
+
+					duration := time.Since(start).Seconds()
+					httpDuration.WithLabelValues("/rawdata/select", "500", "PUT", "putRawDataSelect").Set(duration)
+
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				} else {
+					responseRawDataData.SpaceID = spaceID
+					responseRawDataData.Metric = metric
+					responseRawDataData.CreateTime = createTime
+					responseRawDataData.EventTime = eventTime
+					responseRawDataData.Value = value
+					responseRawDataData.Object = object
+					responseRawDataData.SpaceDesc = spaceDesc
+					responseRawDataData.Labels = labels
+
+					responseRawDataDataA = append(responseRawDataDataA, responseRawDataData)
+				}
+			}
+
+			if err := scanner.Err(); err != nil {
+				log.Print(err)
+				go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
+
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawdata/select", "500", "PUT", "putRawDataSelect").Set(duration)
+
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
 			responseRawData.Data = responseRawDataDataA
-			responseRawData.Page = responseRawDataPage
+
 			responseJSON, err := json.Marshal(responseRawData)
 			if err != nil {
 				log.Print("JSON MARSHAL ERROR (" + err.Error() + ")!")
 				go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
+
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawdata/select", "500", "PUT", "putRawDataSelect").Set(duration)
+
 				w.WriteHeader(http.StatusInternalServerError)
 			} else {
 				go chrdsclient.Metric("httpstatus", float32(http.StatusOK))
 				w.Header().Set("Content-Type", "application/json")
 				w.Write(responseJSON)
+
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawdata/select", "200", "PUT", "putRawDataSelect").Set(duration)
+
 				return
 			}
 		} else {
 			log.Print("Failed to choose the data!")
 			go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
+
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/rawdata/select", "500", "PUT", "putRawDataSelect").Set(duration)
+
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 	} else {
+		duration := time.Since(start).Seconds()
+		httpDuration.WithLabelValues("/rawdata/select", "403", "PUT", "putRawDataSelect").Set(duration)
+
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
 }
 
 func putMetricTextSelect(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
 	_, claims, _ := jwtauth.FromContext(r.Context())
 	log.Printf("User %v requested a meter list!", claims["username"])
 
@@ -1272,6 +1061,10 @@ func putMetricTextSelect(w http.ResponseWriter, r *http.Request) {
 			var space SpaceT
 			if err := json.Unmarshal(b, &space); err != nil {
 				log.Print("JSON UNMARSHAL ERROR (" + err.Error() + ")!")
+
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawtext/metric/select", "500", "PUT", "putMetricTextSelect").Set(duration)
+
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -1285,6 +1078,9 @@ func putMetricTextSelect(w http.ResponseWriter, r *http.Request) {
 
 				err := scanner.Scan(&metric)
 				if err != nil {
+					duration := time.Since(start).Seconds()
+					httpDuration.WithLabelValues("/rawtext/metric/select", "500", "PUT", "putMetricTextSelect").Set(duration)
+
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				} else {
@@ -1294,33 +1090,53 @@ func putMetricTextSelect(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			if err := scanner.Err(); err != nil {
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawtext/metric/select", "500", "PUT", "putMetricTextSelect").Set(duration)
+
 				log.Print(err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 			responseJSON, err := json.Marshal(responseMetricA)
 			if err != nil {
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawtext/metric/select", "500", "PUT", "putMetricTextSelect").Set(duration)
+
 				log.Print("JSON MARSHAL ERROR (" + err.Error() + ")!")
 				w.WriteHeader(http.StatusInternalServerError)
 			} else {
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawtext/metric/select", "200", "PUT", "putMetricTextSelect").Set(duration)
+
 				w.Header().Set("Content-Type", "application/json")
 				w.Write(responseJSON)
 				return
 			}
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/rawtext/metric/select", "500", "PUT", "putMetricTextSelect").Set(duration)
+
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		} else {
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/rawtext/metric/select", "500", "PUT", "putMetricTextSelect").Set(duration)
+
 			log.Print("It was not possible to choose metrics!")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 	} else {
+		duration := time.Since(start).Seconds()
+		httpDuration.WithLabelValues("/rawtext/metric/select", "403", "PUT", "putMetricTextSelect").Set(duration)
+
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
 }
 
 func putMetricDataSelect(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
 	_, claims, _ := jwtauth.FromContext(r.Context())
 	log.Printf("User %v requested a meter list!", claims["username"])
 
@@ -1339,12 +1155,18 @@ func putMetricDataSelect(w http.ResponseWriter, r *http.Request) {
 			b, err := io.ReadAll(r.Body)
 			defer r.Body.Close()
 			if err != nil {
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawdata/metric/select", "500", "PUT", "putMetricDataSelect").Set(duration)
+
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 
 			var space SpaceT
 			if err := json.Unmarshal(b, &space); err != nil {
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawdata/metric/select", "500", "PUT", "putMetricDataSelect").Set(duration)
+
 				log.Print("JSON UNMARSHAL ERROR (" + err.Error() + ")!")
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -1359,6 +1181,9 @@ func putMetricDataSelect(w http.ResponseWriter, r *http.Request) {
 
 				err := scanner.Scan(&metric)
 				if err != nil {
+					duration := time.Since(start).Seconds()
+					httpDuration.WithLabelValues("/rawdata/metric/select", "500", "PUT", "putMetricDataSelect").Set(duration)
+
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				} else {
@@ -1368,41 +1193,46 @@ func putMetricDataSelect(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			if err := scanner.Err(); err != nil {
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawdata/metric/select", "500", "PUT", "putMetricDataSelect").Set(duration)
+
 				log.Print(err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 			responseJSON, err := json.Marshal(responseMetricA)
 			if err != nil {
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawdata/metric/select", "500", "PUT", "putMetricDataSelect").Set(duration)
+
 				log.Print("JSON MARSHAL ERROR (" + err.Error() + ")!")
 				w.WriteHeader(http.StatusInternalServerError)
 			} else {
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/rawdata/metric/select", "200", "PUT", "putMetricDataSelect").Set(duration)
+
 				w.Header().Set("Content-Type", "application/json")
 				w.Write(responseJSON)
 				return
 			}
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/rawdata/metric/select", "500", "PUT", "putMetricDataSelect").Set(duration)
+
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		} else {
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/rawdata/metric/select", "500", "PUT", "putMetricDataSelect").Set(duration)
+
 			log.Print("It was not possible to choose metrics!")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 	} else {
+		duration := time.Since(start).Seconds()
+		httpDuration.WithLabelValues("/rawdata/metric/select", "403", "PUT", "putMetricDataSelect").Set(duration)
+
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-}
-
-func makeDateList(monthsNum int) []string {
-	if monthsNum == 1 {
-		monthsNum = 2
-	}
-	t := time.Now()
-	var tStringA []string
-	for i := 0; i <= monthsNum-1; i++ {
-		tString := t.AddDate(0, -i, 0).Format("2006.01")
-		tStringA = append(tStringA, tString)
-	}
-	return tStringA
 }

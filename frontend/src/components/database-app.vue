@@ -42,7 +42,7 @@ export default {
     },
     methods: {
         databaseStatus() {
-            const vm = this;
+            let vm = this;
             vm.tableLoading = true;
             $.ajax({
                 url: "/api/v1/admin/database/status?" + Math.random(),
@@ -51,7 +51,6 @@ export default {
                 success: function (data) {
                     let dataNormal = [];
                     if (data != null) {
-                        console.log(data);
                         data.forEach(function(item, i) {
                             dataNormal[i] = item;
                             dataNormal[i].dc = (item.dc).toUpperCase();
@@ -67,7 +66,7 @@ export default {
             });
         },
         async userInfo() {
-            const vm = this;
+            let vm = this;
             await $.ajax({
                 url: "/api/v1/userinfo?" + Math.random(),
                 type: "GET",
@@ -91,9 +90,7 @@ export default {
                     return true;
                 }
             });
-            console.log("Роль: " + this.userRole);
-            console.log("Ограничение: " + this.userBlock + ", " + this.adminBlock);
-            if (this.userRole == "superadmin") {
+            if (this.userRole == "superadmin" || this.userRole == "admin" || this.userRole == "user") {
                 this.databaseStatus();
             }
         },

@@ -96,7 +96,7 @@
                                     </div>
                                 </va-card-title>
                                 <va-card-content>
-                                    {{ emailList.description }}
+                                    [{{ emailList.owner }}] <b>{{ emailList.description }}</b>
                                 </va-card-content>
                             </va-card>
                         
@@ -163,7 +163,7 @@
                 this.showModalCreate = true;
             },
             putEMailListCreate() {
-                const vm = this;
+                let vm = this;
 
                 if (vm.emailListName == "") {
                     vm.showModalCreate = true;
@@ -199,7 +199,7 @@
                 });
             },
             getEMailListSelect() {
-                const vm = this;
+                let vm = this;
                 $.ajax({
                     url: "/api/v1/admin/emaillist/select?" + Math.random(),
                     type: "GET",

@@ -66,7 +66,7 @@
                 }
             },
             problemSelect() {
-                const vm = this;
+                let vm = this;
                 vm.tableLoading = true;
                 $.ajax({
                     url: "/api/v1/admin/problem/select?" + Math.random(),
@@ -88,7 +88,7 @@
                 });
             },
             async userInfo() {
-                const vm = this;
+                let vm = this;
                 await $.ajax({
                     url: "/api/v1/userinfo?" + Math.random(),
                     type: "GET",
@@ -158,15 +158,18 @@
 
 <style>
 .problem-red {
-    background-color: rgb(224, 80, 61);
-    color: black;
+    background-color: var(--va-danger);
+    color: white;
+    font-weight: bold;
 }
 .problem-yellow {
-    background-color: rgb(249, 218, 106);
+    background-color: var(--va-warning);
     color: black;
+    font-weight: bold;
 }
 .problem-green {
-    background-color: rgb(102, 190, 51);
+    background-color: var(--va-success);
     color: black;
+    font-weight: bold;
 }
 </style>

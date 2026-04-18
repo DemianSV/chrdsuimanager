@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/DemianSV/chrdsclient"
 	"github.com/go-chi/chi/v5"
@@ -16,7 +17,7 @@ import (
 
 func putChartData(w http.ResponseWriter, r *http.Request) {
 	_, claims, _ := jwtauth.FromContext(r.Context())
-	log.Printf("User %v requested scheduled data", claims["username"])
+	log.Printf("User %v requested chart data", claims["username"])
 
 	type RequestT struct {
 		DataSRC string `json:"datasrc"`
@@ -56,7 +57,7 @@ func putChartData(w http.ResponseWriter, r *http.Request) {
 			var chartData ChartDataT
 			ctx := context.Background()
 			var scanner gocql.Scanner
-			stopTime := chrdsclient.MakeTimestamp()
+			stopTime := time.Now().UnixMilli()
 			startTime := stopTime - (23 * 60 * 60 * 1000)
 
 			chartDataSet.BackgroundColor = "#ade2ffbe"
@@ -138,17 +139,12 @@ func putChartData(w http.ResponseWriter, r *http.Request) {
 					args = append(args, iTime)
 					args = append(args, iTime+(60*60*1000))
 
-					syntKeyList := makeDateList(1)
-					for _, item := range syntKeyList {
-						args = append(args, item)
-					}
-
 					var scanner gocql.Scanner
 					switch request.DataSRC {
 					case "raw_text":
-						scanner = Session.Query(`SELECT count(*) FROM raw_text01 WHERE space_id IN (?`+strings.Repeat(", ?", len(spaceID)-1)+`) AND event_time >= ? AND event_time < ? AND synt_key IN (?`+strings.Repeat(", ?", len(syntKeyList)-1)+`)`, args...).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
+						scanner = Session.Query(`SELECT sum(value) FROM raw_count WHERE space_id IN (?`+strings.Repeat(", ?", len(spaceID)-1)+`) AND raw_type = 'text' AND create_time >= ? AND create_time < ?`, args...).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
 					case "raw_data":
-						scanner = Session.Query(`SELECT count(*) FROM raw_data01 WHERE space_id IN (?`+strings.Repeat(", ?", len(spaceID)-1)+`) AND event_time >= ? AND event_time < ? AND synt_key IN (?`+strings.Repeat(", ?", len(syntKeyList)-1)+`)`, args...).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
+						scanner = Session.Query(`SELECT sum(value) FROM raw_count WHERE space_id IN (?`+strings.Repeat(", ?", len(spaceID)-1)+`) AND raw_type = 'data' AND create_time >= ? AND create_time < ?`, args...).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
 					default:
 						go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
 						w.WriteHeader(http.StatusInternalServerError)

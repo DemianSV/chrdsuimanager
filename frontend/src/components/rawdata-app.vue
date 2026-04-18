@@ -8,13 +8,15 @@
 
     <div class="layout va-gutter-4 md12" style="height: 100%; width: 100%">
         <div class="row">
-            <va-select class="flex md6" v-model="spaceValue" :options="spaceOptions" v-on:update:model-value="spaceSelectUpdateValue" :label="$t('rawdata.filter01')" :placeholder="$t('rawdata.message01')" :no-options-text="$t('message.listempty')"></va-select>
-            <va-select class="flex md6" v-model="metricValue" :options="metricOptions" v-on:update:model-value="metricSelectUpdateValue" :label="$t('rawdata.filter02')" :placeholder="$t('rawdata.message02')" :no-options-text="$t('message.listempty')"></va-select>
+            <va-select class="flex md6" v-model="spaceValue" :options="spaceOptions" v-on:update:model-value="spaceSelectUpdateValue" :label="$t('rawdata.filter01')" :placeholder="$t('rawdata.message01')" :no-options-text="$t('message.listempty')" searchable></va-select>
+            <va-select class="flex md6" v-model="metricValue" :options="metricOptions" v-on:update:model-value="metricSelectUpdateValue" :label="$t('rawdata.filter02')" :placeholder="$t('rawdata.message02')" :no-options-text="$t('message.listempty')" searchable></va-select>
         </div>
         <div class="row align-end">
             <va-input class="flex md6" :placeholder="$t('rawdata.message03')" :label="$t('rawdata.filter03')" v-model="input" v-on:update:model-value="filterUpdate"></va-input>
-            <div class="flex md6">
-                <va-pagination class="justify-center" v-model="pageCurent" size="small" :visible-pages="10" :pages="pageCount" v-on:update:model-value="pageUpdateValue" boundary-numbers></va-pagination>
+            <div class="flex md6" align="center">
+                <va-button icon="chevron_left" v-on:click="selectLeft()" v-bind:disabled="isDisabledLeft" class="mr-2 ml-1" />
+                <va-button disabled>{{ currentPage + 1 }}</va-button>
+                <va-button icon="chevron_right" v-on:click="selectRight()" v-bind:disabled="isDisabledRight"  class="ml-2" />
             </div>
         </div>
         <br>
@@ -40,13 +42,9 @@
                 spaceOptions: [],
                 metricOptions: [],
                 metricValue: {},
-                pageCurent: 1,
-                pageCount: 1,
                 gridApi: null,
                 tableData: [],
                 tableLoading: false,
-                dateMin: this.$t('message.nodata'),
-                dateMax: this.$t('message.nodata'),
                 input: "",
                 wrapperSize: "800px",
                 componentKey: 0,
@@ -55,22 +53,50 @@
                     { field: "object", headerName: this.$t('rawdata.table02') },
                     { field: "metric", headerName: this.$t('rawdata.table03') },
                     { field: "value", headerName: this.$t('rawdata.table04') },
+                    { field: "labels", headerName: "Labels" },
                     { field: "eventtime", headerName: this.$t('rawdata.table05') },
-                    { field: "status", headerName: this.$t('rawdata.table06') },
                 ],
+
+                // Pagination
+                selectParam: {},
+                isDisabledLeft: true,
+                isDisabledRight: true,
+                currentPage: 0,
+                pages: [""],
             }
         },
         methods: {
-            rawDataSelect() {
-                const vm = this;
+            selectRight() {
+                let vm = this;
+                vm.currentPage++;
+                vm.rawDataSelect(vm.selectParam.next);
+                vm.pages[vm.currentPage] = vm.selectParam.next;
+            },
+            selectLeft() {
+                let vm = this;
+                if (vm.currentPage > 0) {
+                    vm.currentPage--;
+                }
+                vm.rawDataSelect(vm.pages[vm.currentPage]);
+            },
+            rawDataSelect(current) {
+                let vm = this;
+                let dataPut = {};
+
                 vm.tableLoading = true;
+
+                if (current != "") {
+                    dataPut.current = current;
+                } else {
+                    dataPut.current = "";
+                }
+                dataPut.pagesize = 1000;
+
                 if (this.spaceValue.value != "") {
                     if (this.metricValue.value != "") {
-                        let dataPut = {
-                            spaceid: this.spaceValue.value,
-                            metric: this.metricValue.value,
-                            pagecurent: this.pageCurent,
-                        };
+                        dataPut.spaceid = this.spaceValue.value;
+                        dataPut.metric = this.metricValue.value;
+
                         $.ajax({
                             url: "/api/v1/admin/rawdata/select?" + Math.random(),
                             type: "PUT",
@@ -87,15 +113,28 @@
                                             dataNormal[i] = item;
                                             dataNormal[i].createtime = moment(item.createtime).format("DD.MM.YYYY HH:mm:ss");
                                             dataNormal[i].eventtime = moment(item.eventtime).format("DD.MM.YYYY HH:mm:ss");
+                                            if (item.labels != null) {
+                                                dataNormal[i].labels = JSON.stringify(item.labels);
+                                            } else {
+                                                dataNormal[i].labels = "";
+                                            }
                                         });
                                     }
                                     vm.tableData = dataNormal;
-                                    vm.pageCount = data.page.pagecount;
-                                    vm.pageCurent = data.page.pagecurent;
-                                    if (data.page.datemin > 0 && data.page.datemax > 0) {
-                                        vm.dateMin = moment(data.page.datemin).format("DD.MM.YYYY HH:mm:ss");
-                                        vm.dateMax = moment(data.page.datemax).format("DD.MM.YYYY HH:mm:ss");
+                                    vm.selectParam.current = data.current;
+                                    vm.selectParam.next = data.next;
+
+                                    if (data.next != "" && data.next != undefined ) {
+                                        vm.isDisabledRight = false;
+                                    } else {
+                                        vm.isDisabledRight = true;
                                     }
+                                    if (data.current != "" && data.current != undefined) {
+                                        vm.isDisabledLeft = false;
+                                    } else {
+                                        vm.isDisabledLeft = true;
+                                    }
+
                                     vm.tableLoading = false;
                                     return true;
                                 },
@@ -109,25 +148,26 @@
                                 return true;
                             }
                         });
-                    } else {
-                        vm.tableLoading = false;
                     }
-                } else {
-                    vm.tableLoading = false;
                 }
             },
             spaceSelect() {
-                const vm = this;
+                let vm = this;
+                let dataPut = {
+                    pagesize: 0,
+                };
+
                 $.ajax({
                     url: "/api/v1/admin/space/select?" + Math.random(),
-                    type: "GET",
+                    type: "PUT",
                     dataType: "json",
+                    data: JSON.stringify(dataPut),
                     success: function (data) {
-                        if (data == null) {
-                            data = [];
+                        if (data.data == null) {
+                            data.data = [];
                         } else {
-                            if (data.length > 0) {
-                                data.forEach(function(item, i) {
+                            if (data.data.length > 0) {
+                                data.data.forEach(function(item, i) {
                                     vm.spaceOptions[i] = { text: item.description, value: item.id };
                                 });
                             }
@@ -137,34 +177,40 @@
                 });
             },
             spaceSelectUpdateValue() {
-                const vm = this;
+                let vm = this;
                 vm.metricOptions = [];
                 vm.metricValue = {};
                 let dataPut = {
-                    spaceid: this.spaceValue.value,
+                    spaceid: vm.spaceValue.value,
                 };
                 $.ajax({
                     url: "/api/v1/admin/rawdata/metric/select?" + Math.random(),
                     type: "PUT",
                     dataType: "json",
                     data: JSON.stringify(dataPut),
-                    success: function (data) {
-                        if (data == null) {
-                            data = [];
-                        } else {
-                            if (data.length > 0) {
-                                data.forEach(function(item, i) {
-                                    vm.metricOptions[i + 1] = {text: item.metric, value: item.metric};
-                                });
+                    statusCode: {
+                        200: function (data) {
+                            if (data == null) {
+                                data = [];
+                            } else {
+                                if (data.length > 0) {
+                                    data.forEach(function(item, i) {
+                                        vm.metricOptions[i + 1] = {text: item.metric, value: item.metric};
+                                    });
+                                }
                             }
+                            return true;
+                        },
+                        500: function () {
+                            return true;
                         }
-                        return true;
+                    },
+                    error: function () {
+                            return true;
                     }
                 });
                 if (vm.spaceValue.value != "") {
                     vm.tableData = [];
-                    vm.pageCount = 1;
-                    vm.pageCurent = 1;
                 }
             },
             pageUpdateValue() {
@@ -173,6 +219,11 @@
             metricSelectUpdateValue() {
                 this.input = "";
                 if (this.metricValue.value != "") {
+                    this.selectParam = {};
+                    this.isDisabledLeft = true;
+                    this.isDisabledRight = true;
+                    this.currentPage = 0;
+                    this.pages = [""];
                     this.rawDataSelect();
                 }
             },
@@ -206,8 +257,8 @@
                     { field: "object", headerName: this.$t('rawdata.table02') },
                     { field: "metric", headerName: this.$t('rawdata.table03') },
                     { field: "value", headerName: this.$t('rawdata.table04') },
+                    { field: "labels", headerName: "Labels" },
                     { field: "eventtime", headerName: this.$t('rawdata.table05') },
-                    { field: "status", headerName: this.$t('rawdata.table06') },
                 ]
                 this.componentKey += 1;
             },
@@ -216,7 +267,6 @@
             },
             tableData(newValue) {
                 if (newValue.length > 0 && this.gridApi) {
-                    console.log("SIZE COLUMNS");
                     setTimeout(() => {
                         // this.gridApi.autoSizeAllColumns();
                         this.gridApi.sizeColumnsToFit();
@@ -227,9 +277,4 @@
     }
 </script>
 
-<style>
-    .va-button-group {
-        display: block;
-        padding: 0.75rem;
-    }
-</style>
+<style></style>

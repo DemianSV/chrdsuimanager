@@ -2,8 +2,6 @@ import { createApp, version } from 'vue'
 import { createStore } from 'vuex'
 import { createVuestic } from 'vuestic-ui'
 import { createI18n } from 'vue-i18n'
-import { AgGridVue } from "ag-grid-vue3"; // Vue Data Grid Component
-import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import 'vuestic-ui/css';
 
 import $ from 'jquery';
@@ -12,14 +10,12 @@ import login from './login-app.vue';
 import main from './main-app.vue';
 import router from './router.js';
 
-var versionApp = "1.0.5";
+var versionApp = "1.1.0";
 var vuesticVersion = "1.10.3";
 
 console.log("FrontEnd version: " + versionApp);
 console.log("Vue version: " + version);
 console.log("Vuestic version: " + vuesticVersion);
-
-ModuleRegistry.registerModules([AllCommunityModule]);
 
 const i18n = createI18n({
     locale: 'ru',
@@ -39,6 +35,7 @@ const i18n = createI18n({
                 spaces: 'Spaces',
                 space: 'Space',
                 module: 'Module',
+                dm: "DataManager",
                 modules: 'Modules',
                 tasks: 'Tasks',
                 problems: 'Problems',
@@ -76,6 +73,7 @@ const i18n = createI18n({
                 number: 'Number',
                 dbstatus: 'DB state',
                 settings: 'Settings',
+                address: 'Address',
             },
             login: {
                 username01: 'Enter username',
@@ -151,6 +149,9 @@ const i18n = createI18n({
                 message10: 'Enter a brief description',
                 message11: 'Select the type of module',
                 message12: 'Removing the module',
+                message13: 'Enter the address',
+                message14: 'The address is required for prometheus modules',
+                message15: 'Attention! Together with the module, all his tasks will be removed!',
             },
             task: {
                 new: 'New task',
@@ -181,6 +182,7 @@ const i18n = createI18n({
                 message21: 'Task data',
                 message22: 'Mailing list',
                 message23: 'Select a mailing list',
+                message24: 'Select DataManager',
             },
             role: {
                 superadmin: 'Super administrator',
@@ -260,6 +262,17 @@ const i18n = createI18n({
                 message34: 'Chart color',
                 message35: 'Grouping function',
                 message36: 'Sorting',
+                message37: 'Select a standard interval, or enter a value in seconds',
+                message38: '1 hour',
+                message39: '3 hours',
+                message40: '6 hours',
+                message41: '12 hours',
+                message42: '24 hours',
+                message43: '3 days',
+                message44: 'Enter the interval in seconds',
+                message45: 'Interval (seconds)',
+                message46: 'Chart',
+                message47: 'The interval must be a positive integer',
             },
             emaillist: {
                 message01: 'Enter the name of the list',
@@ -308,6 +321,7 @@ const i18n = createI18n({
                 spaces: 'Пространства',
                 space: 'Пространство',
                 module: 'Модуль',
+                dm: "DataManager",
                 modules: 'Модули',
                 tasks: 'Задачи',
                 problems: 'Проблемы',
@@ -345,6 +359,7 @@ const i18n = createI18n({
                 number: 'Число',
                 dbstatus: 'Состояние БД',
                 settings: 'Настройки',
+                address: 'Адрес',
             },
             login: {
                 username01: 'Введите имя пользователя',
@@ -420,6 +435,9 @@ const i18n = createI18n({
                 message10: 'Введите краткое описание',
                 message11: 'Выберите тип модуля',
                 message12: 'Удаление модуля',
+                message13: 'Введите адрес',
+                message14: 'Адрес обязателен для модулей типа prometheus',
+                message15: 'Внимание! Вместе с модулем будут удалены все его задачи!',
             },
             task: {
                 new: 'Новая задача',
@@ -450,6 +468,7 @@ const i18n = createI18n({
                 message21: 'Данные задачи',
                 message22: 'Список рассылки',
                 message23: 'Выберите список рассылки',
+                message24: 'Выберите DataManager',
             },
             role: {
                 superadmin: 'Супер администратор',
@@ -529,6 +548,17 @@ const i18n = createI18n({
                 message34: 'Цвет графика',
                 message35: 'Функция группировки',
                 message36: 'Сортировка',
+                message37: 'Выберите стандартный интервал, или введите значение в секндах',
+                message38: '1 час',
+                message39: '3 часа',
+                message40: '6 часов',
+                message41: '12 часов',
+                message42: '24 часа',
+                message43: '3 дня',
+                message44: 'Введите интервал в секундах',
+                message45: 'Интервал (секунды)',
+                message46: 'График',
+                message47: 'Интервал должен быть положительным, целым числом',
             },
             emaillist: {
                 message01: 'Введите название списка',
@@ -609,14 +639,14 @@ const store = createStore({
 })
 
 if (jwtCheck() == 1) {
-    const vm = createApp(main).use(store).use(router).use(i18n).use(createVuestic(confVuestic)).use(AgGridVue).use(ModuleRegistry.registerModules([AllCommunityModule])).mount('#main');
+    let vm = createApp(main).use(store).use(router).use(i18n).use(createVuestic(confVuestic)).mount('#main');
     vm.versionInfo();
     vm.userInfo();
     setTimeout(function() {
         vm.showPreloader = false;
     }, 600);
 } else {
-    const vm = createApp(login).use(store).use(i18n).use(createVuestic(confVuestic)).mount('#main');
+    let vm = createApp(login).use(store).use(i18n).use(createVuestic(confVuestic)).mount('#main');
     setTimeout(function() {
         vm.showPreloader = false;
     }, 600); 

@@ -6,7 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"strings"
+	"time"
 
 	"github.com/DemianSV/chrdsclient"
 	"github.com/go-chi/chi/v5"
@@ -64,6 +64,8 @@ func getDashboardCount(w http.ResponseWriter, r *http.Request) {
 }
 
 func getDashboardSelect(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
 	_, claims, _ := jwtauth.FromContext(r.Context())
 	log.Printf("User %v requested a list of dashboard", claims["username"])
 
@@ -82,6 +84,7 @@ func getDashboardSelect(w http.ResponseWriter, r *http.Request) {
 		Name      string               `json:"name"`
 		StartTime int64                `json:"starttime"`
 		StopTime  int64                `json:"stoptime"`
+		Interval  int64                `json:"interval"`
 		Status    int                  `json:"status"`
 		ChartData []ResponseChartDataT `json:"chartdata"`
 	}
@@ -93,14 +96,15 @@ func getDashboardSelect(w http.ResponseWriter, r *http.Request) {
 		var responseDashboardA []ResponseDashboardT
 
 		ctx01 := context.Background()
-		scanner01 := Session.Query(`SELECT id, name, start_time, stop_time, status FROM dashboard WHERE user_id = ?`, claims["userid"]).WithContext(ctx01).Consistency(ConsistencyRead).Iter().Scanner()
+		scanner01 := Session.Query(`SELECT id, name, start_time, stop_time, status, interval FROM dashboard WHERE user_id = ?`, claims["userid"]).WithContext(ctx01).Consistency(ConsistencyRead).Iter().Scanner()
 		for scanner01.Next() {
 			var dashboardID string
 			var dashboardName string
 			var startTime int64
 			var stopTime int64
+			var interval int64
 			var dashboardStatus int
-			err := scanner01.Scan(&dashboardID, &dashboardName, &startTime, &stopTime, &dashboardStatus)
+			err := scanner01.Scan(&dashboardID, &dashboardName, &startTime, &stopTime, &dashboardStatus, &interval)
 			if err != nil {
 				log.Print(err)
 				w.WriteHeader(http.StatusInternalServerError)
@@ -140,6 +144,7 @@ func getDashboardSelect(w http.ResponseWriter, r *http.Request) {
 					responseDashboard.Name = dashboardName
 					responseDashboard.StartTime = startTime
 					responseDashboard.StopTime = stopTime
+					responseDashboard.Interval = interval
 					responseDashboard.Status = dashboardStatus
 					responseDashboard.ChartData = responseChartDataA
 
@@ -150,20 +155,31 @@ func getDashboardSelect(w http.ResponseWriter, r *http.Request) {
 
 		responseJSON, err := json.Marshal(responseDashboardA)
 		if err != nil {
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/dashboard/select", "500", "GET", "getDashboardSelect").Set(duration)
+
 			log.Print("JSON MARSHAL ERROR (" + err.Error() + ")!")
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/dashboard/select", "200", "GET", "getDashboardSelect").Set(duration)
+
 			w.Header().Set("Content-Type", "application/json")
 			w.Write(responseJSON)
 			return
 		}
 	} else {
+		duration := time.Since(start).Seconds()
+		httpDuration.WithLabelValues("/dashboard/select", "500", "GET", "getDashboardSelect").Set(duration)
+
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 }
 
 func putChartDashboardData(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
 	_, claims, _ := jwtauth.FromContext(r.Context())
 	log.Printf("User %v requested Dashboard data", claims["username"])
 
@@ -182,6 +198,7 @@ func putChartDashboardData(w http.ResponseWriter, r *http.Request) {
 		Name      string             `json:"name"`
 		StartTime int64              `json:"starttime"`
 		StopTime  int64              `json:"stoptime"`
+		Interval  int64              `json:"interval"`
 		ChartData []RequesChartDataT `json:"chartdata"`
 	}
 
@@ -209,6 +226,10 @@ func putChartDashboardData(w http.ResponseWriter, r *http.Request) {
 			defer r.Body.Close()
 			if err != nil {
 				go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
+
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/dashboard/data", "500", "PUT", "putChartDashboardData").Set(duration)
+
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -217,6 +238,10 @@ func putChartDashboardData(w http.ResponseWriter, r *http.Request) {
 			if err := json.Unmarshal(b, &request); err != nil {
 				log.Print("JSON UNMARSHAL ERROR (" + err.Error() + ")!")
 				go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
+
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/dashboard/data", "500", "PUT", "putChartDashboardData").Set(duration)
+
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -237,7 +262,11 @@ func putChartDashboardData(w http.ResponseWriter, r *http.Request) {
 					stopTime = requestA.StopTime
 				}
 				if requestA.StartTime == 0 {
-					startTime = stopTime - (30 * 60 * 1000) // Default sample period 30 minutes
+					if requestA.Interval != 0 {
+						startTime = stopTime - (requestA.Interval * 1000)
+					} else {
+						startTime = stopTime - (30 * 60 * 1000) // Default sample period 30 minutes
+					}
 				} else {
 					startTime = requestA.StartTime
 				}
@@ -246,14 +275,14 @@ func putChartDashboardData(w http.ResponseWriter, r *http.Request) {
 
 				if stopTime-startTime <= (3 * 60 * 1000) { // Up to 3 minutes
 					deltaTime = 1 // 1 second
-				} else if stopTime-startTime > (3*60*1000) && stopTime-startTime <= (60*60*1000) { // up to 1 hour
+				} else if stopTime-startTime > (3*60*1000) && stopTime-startTime <= (60*60*1000) { // Up to 1 hour
 					deltaTime = 60 // 1 minute
 				} else if stopTime-startTime > (60*60*1000) && stopTime-startTime <= (120*60*1000) { // Up to 2 hours
 					deltaTime = 600 // 10 minutes
 				} else if stopTime-startTime > (120*60*1000) && stopTime-startTime <= (1440*60*1000) { // Up to 24 hours
 					deltaTime = 900 // 15 minutes
 				} else if stopTime-startTime > (1440*60*1000) && stopTime-startTime <= (4320*60*1000) { // Up to 3 days
-					deltaTime = 3600 // 1 time
+					deltaTime = 3600 // 1 hour
 				} else { // More than 3 days
 					deltaTime = 86400 // 1 day
 				}
@@ -285,12 +314,7 @@ func putChartDashboardData(w http.ResponseWriter, r *http.Request) {
 						args = append(args, iTime)
 						args = append(args, iTime+(deltaTime*1000))
 
-						syntKeyList := makeDateList(int(((stopTime - startTime) / 1000 / 60 / 60 / 24 / 30) + 1)) // Preparation of the list of keys for data sample
-						for _, item := range syntKeyList {
-							args = append(args, item)
-						}
-
-						scanner := Session.Query(`SELECT value FROM raw_data02 WHERE space_id = ? AND metric = ? AND event_time >= ? AND event_time < ? AND synt_key IN (?`+strings.Repeat(", ?", len(syntKeyList)-1)+`)`, args...).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
+						scanner := Session.Query(`SELECT value FROM raw_data WHERE space_id = ? AND metric = ? AND event_time >= ? AND event_time < ?`, args...).WithContext(ctx).Consistency(ConsistencyRead).Iter().Scanner()
 
 						var valueCount float32 = 0
 						var valueSum float32 = 0
@@ -299,6 +323,10 @@ func putChartDashboardData(w http.ResponseWriter, r *http.Request) {
 							err := scanner.Scan(&value)
 							if err != nil {
 								go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
+
+								duration := time.Since(start).Seconds()
+								httpDuration.WithLabelValues("/dashboard/data", "500", "PUT", "putChartDashboardData").Set(duration)
+
 								w.WriteHeader(http.StatusInternalServerError)
 								return
 							} else {
@@ -309,6 +337,10 @@ func putChartDashboardData(w http.ResponseWriter, r *http.Request) {
 						if err := scanner.Err(); err != nil {
 							log.Print(err)
 							go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
+
+							duration := time.Since(start).Seconds()
+							httpDuration.WithLabelValues("/dashboard/data", "500", "PUT", "putChartDashboardData").Set(duration)
+
 							w.WriteHeader(http.StatusInternalServerError)
 							return
 						}
@@ -330,28 +362,49 @@ func putChartDashboardData(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				log.Print("JSON MARSHAL ERROR (" + err.Error() + ")!")
 				go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
+
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/dashboard/data", "500", "PUT", "putChartDashboardData").Set(duration)
+
 				w.WriteHeader(http.StatusInternalServerError)
 			} else {
 				go chrdsclient.Metric("httpstatus", float32(http.StatusOK))
+
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/dashboard/data", "200", "PUT", "putChartDashboardData").Set(duration)
+
 				w.Header().Set("Content-Type", "application/json")
 				w.Write(responseJSON)
 				return
 			}
 			go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
+
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/dashboard/data", "500", "PUT", "putChartDashboardData").Set(duration)
+
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
 			log.Print("Failed to get data!")
 			go chrdsclient.Metric("httpstatus", float32(http.StatusInternalServerError))
+
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/dashboard/data", "500", "PUT", "putChartDashboardData").Set(duration)
+
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 	} else {
+		duration := time.Since(start).Seconds()
+		httpDuration.WithLabelValues("/dashboard/data", "403", "PUT", "putChartDashboardData").Set(duration)
+
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
 }
 
 func putDashboardCreate(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
 	_, claims, _ := jwtauth.FromContext(r.Context())
 	log.Printf("User %v requested the creation of a dashboard!", claims["username"])
 
@@ -359,6 +412,7 @@ func putDashboardCreate(w http.ResponseWriter, r *http.Request) {
 		Name      string `json:"name"`
 		StartTime int64  `json:"starttime"`
 		StopTime  int64  `json:"stoptime"`
+		Interval  int64  `json:"interval"`
 		Status    int    `json:"status"`
 	}
 
@@ -367,18 +421,27 @@ func putDashboardCreate(w http.ResponseWriter, r *http.Request) {
 		b, err := io.ReadAll(r.Body)
 		defer r.Body.Close()
 		if err != nil {
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/dashboard/create", "500", "PUT", "putDashboardCreate").Set(duration)
+
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		id, err := gocql.RandomUUID()
 		if err != nil {
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/dashboard/create", "500", "PUT", "putDashboardCreate").Set(duration)
+
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		var dashboard Dashboard
 		if err := json.Unmarshal(b, &dashboard); err != nil {
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/dashboard/create", "500", "PUT", "putDashboardCreate").Set(duration)
+
 			log.Print("JSON UNMARSHAL ERROR (" + err.Error() + ")!")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -387,19 +450,28 @@ func putDashboardCreate(w http.ResponseWriter, r *http.Request) {
 		{
 			ctx := context.Background()
 			err := Session.Query(`
-			INSERT INTO dashboard (user_id, id, name, start_time, stop_time, status) VALUES (?, ?, ?, ?, ?, ?)
-			`, claims["userid"], id, dashboard.Name, dashboard.StartTime, dashboard.StopTime, dashboard.Status).WithContext(ctx).Exec()
+			INSERT INTO dashboard (user_id, id, name, start_time, stop_time, status, interval) VALUES (?, ?, ?, ?, ?, ?, ?)
+			`, claims["userid"], id, dashboard.Name, dashboard.StartTime, dashboard.StopTime, dashboard.Status, dashboard.Interval).WithContext(ctx).Exec()
 			if err != nil {
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/dashboard/create", "500", "PUT", "putDashboardCreate").Set(duration)
+
 				log.Print("Failed to create a dashboard (ERROR: ", err.Error(), ")!")
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			} else {
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/dashboard/create", "200", "PUT", "putDashboardCreate").Set(duration)
+
 				log.Printf("User %v successfully created Dashboard!", claims["username"])
 				w.WriteHeader(http.StatusOK)
 				return
 			}
 		}
 	} else {
+		duration := time.Since(start).Seconds()
+		httpDuration.WithLabelValues("/dashboard/create", "500", "PUT", "putDashboardCreate").Set(duration)
+
 		log.Print("It was not possible to create a dashboard!")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -407,6 +479,8 @@ func putDashboardCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 func putDashboardEdit(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
 	_, claims, _ := jwtauth.FromContext(r.Context())
 	log.Printf("User %v requested dashboard update!", claims["username"])
 
@@ -425,6 +499,7 @@ func putDashboardEdit(w http.ResponseWriter, r *http.Request) {
 		Name      string               `json:"name"`
 		StartTime int64                `json:"starttime"`
 		StopTime  int64                `json:"stoptime"`
+		Interval  int64                `json:"interval"`
 		Status    int                  `json:"status"`
 		ChartData []DashboardChartData `json:"chartdata"`
 	}
@@ -434,6 +509,9 @@ func putDashboardEdit(w http.ResponseWriter, r *http.Request) {
 		b, err := io.ReadAll(r.Body)
 		defer r.Body.Close()
 		if err != nil {
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/dashboard/edit", "500", "PUT", "putDashboardEdit").Set(duration)
+
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -442,6 +520,9 @@ func putDashboardEdit(w http.ResponseWriter, r *http.Request) {
 
 		var dashboard Dashboard
 		if err := json.Unmarshal(b, &dashboard); err != nil {
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/dashboard/edit", "500", "PUT", "putDashboardEdit").Set(duration)
+
 			log.Print("JSON UNMARSHAL ERROR (" + err.Error() + ")!")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -454,19 +535,28 @@ func putDashboardEdit(w http.ResponseWriter, r *http.Request) {
 		APPLY BATCH
 		`, dashboard.ID, claims["userid"], dashboard.ID).WithContext(ctx).Exec()
 		if err != nil {
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/dashboard/edit", "500", "PUT", "putDashboardEdit").Set(duration)
+
 			log.Print("Failed to remove dashboard (ERROR: ", err.Error(), ")!")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		} else {
 			uuid, err := gocql.RandomUUID()
 			if err != nil {
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/dashboard/edit", "500", "PUT", "putDashboardEdit").Set(duration)
+
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 			err = Session.Query(`
-			INSERT INTO dashboard (user_id, id, name, start_time, status, stop_time) VALUES (?, ?, ?, ?, ?, ?)
-			`, claims["userid"], uuid, dashboard.Name, dashboard.StartTime, 1, dashboard.StopTime).WithContext(ctx).Exec()
+			INSERT INTO dashboard (user_id, id, name, start_time, status, stop_time, interval) VALUES (?, ?, ?, ?, ?, ?, ?)
+			`, claims["userid"], uuid, dashboard.Name, dashboard.StartTime, 1, dashboard.StopTime, dashboard.Interval).WithContext(ctx).Exec()
 			if err != nil {
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/dashboard/edit", "500", "PUT", "putDashboardEdit").Set(duration)
+
 				log.Print("Failed to update dashboard (ERROR: ", err.Error(), ")!")
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -474,6 +564,9 @@ func putDashboardEdit(w http.ResponseWriter, r *http.Request) {
 				for _, v := range dashboard.ChartData {
 					uuidChartData, err := gocql.RandomUUID()
 					if err != nil {
+						duration := time.Since(start).Seconds()
+						httpDuration.WithLabelValues("/dashboard/edit", "500", "PUT", "putDashboardEdit").Set(duration)
+
 						w.WriteHeader(http.StatusInternalServerError)
 						return
 					}
@@ -481,11 +574,17 @@ func putDashboardEdit(w http.ResponseWriter, r *http.Request) {
 					INSERT INTO dashboard_chartdata (dashboard_id, graph_order, id, graph_color, graph_func, graph_type, metric, space_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 					`, uuid, v.GraphOrder, uuidChartData, v.GraphColor, v.GroupFunc, v.GraphType, v.Metric, v.SpaceID, 1).WithContext(ctx).Exec()
 					if err != nil {
+						duration := time.Since(start).Seconds()
+						httpDuration.WithLabelValues("/dashboard/edit", "500", "PUT", "putDashboardEdit").Set(duration)
+
 						log.Print("Failed to update dashboarding graphs (ERROR: ", err.Error(), ")!")
 						w.WriteHeader(http.StatusInternalServerError)
 						return
 					}
 				}
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/dashboard/edit", "200", "PUT", "putDashboardEdit").Set(duration)
+
 				log.Printf("User %v successfully created dashboard!", claims["username"])
 				w.WriteHeader(http.StatusOK)
 				return
@@ -495,6 +594,8 @@ func putDashboardEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func putDashboardRemove(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
 	_, claims, _ := jwtauth.FromContext(r.Context())
 	log.Printf("User %v requested dashboard removal!", claims["username"])
 
@@ -507,12 +608,18 @@ func putDashboardRemove(w http.ResponseWriter, r *http.Request) {
 		b, err := io.ReadAll(r.Body)
 		defer r.Body.Close()
 		if err != nil {
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/dashboard/remove", "500", "PUT", "putDashboardRemove").Set(duration)
+
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		var dashboard Dashboard
 		if err := json.Unmarshal(b, &dashboard); err != nil {
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/dashboard/remove", "500", "PUT", "putDashboardRemove").Set(duration)
+
 			log.Print("JSON UNMARSHAL ERROR (" + err.Error() + ")!")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -527,16 +634,25 @@ func putDashboardRemove(w http.ResponseWriter, r *http.Request) {
 			APPLY BATCH
 			`, dashboard.ID, claims["userid"], dashboard.ID).WithContext(ctx).Exec()
 			if err != nil {
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/dashboard/remove", "500", "PUT", "putDashboardRemove").Set(duration)
+
 				log.Print("Failed to remove dashboard (ERROR: ", err.Error(), ")!")
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
+
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/dashboard/remove", "200", "PUT", "putDashboardRemove").Set(duration)
 
 			log.Printf("User %v successfully deleted Dashboard!", claims["username"])
 			w.WriteHeader(http.StatusOK)
 			return
 		}
 	} else {
+		duration := time.Since(start).Seconds()
+		httpDuration.WithLabelValues("/dashboard/remove", "500", "PUT", "putDashboardRemove").Set(duration)
+
 		log.Print("Failed to remove dashboard (API VERSION ERROR)!")
 		w.WriteHeader(http.StatusInternalServerError)
 		return

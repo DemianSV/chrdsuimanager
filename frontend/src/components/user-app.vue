@@ -6,13 +6,21 @@
         </va-breadcrumbs>
     </div>
 
-    <div class="row layout va-gutter-3 md12 justify-end">
-        <va-button icon="add" v-bind:disabled="userBlock" v-on:click="buttonClickNew" class="mr-3" />
+    <div class="row layout va-gutter-3">
+        <div class="flex layout va-gutter-3 md6" align="left">
+            <va-button icon="chevron_left" v-on:click="selectLeft()" v-bind:disabled="isDisabledLeft" class="mr-2 ml-1" />
+            <va-button disabled>{{ currentPage + 1 }}</va-button>
+            <va-button icon="chevron_right" v-on:click="selectRight()" v-bind:disabled="isDisabledRight"  class="ml-2" />
+        </div>
+        <div class="flex layout va-gutter-3 md6" align="right">
+            <va-button icon="refresh" v-on:click="putUserSelect(pages[currentPage])" class="ml-2 mr-1" />
+            <va-button icon="add" v-bind:disabled="userBlock" v-on:click="buttonClickNew" class="ml-2 mr-1" />
+        </div>
     </div>
     
-    <div class="layout va-gutter-3 md12">
+    <div class="layout va-gutter-4 md12">
         <va-inner-loading :loading="tableLoading">
-            <ag-grid-vue :key="componentKey" :rowData="tableData" :columnDefs="colDefs" domLayout="autoHeight" :components="components" @grid-ready="onGridReady" style="height: 100%; width: 100%"></ag-grid-vue>
+            <ag-grid-vue :key="componentKey" :rowData="tableData" :columnDefs="colDefs" domLayout="autoHeight" :components="components" @grid-ready="onGridReady" style="height: 100%; width: 100%" :enableCellTextSelection="true" :ensureDomOrder="true"></ag-grid-vue>
         </va-inner-loading>
     </div>
     
@@ -50,7 +58,7 @@
 
     export default {
         components: {
-            AgGridVue,
+            AgGridVue
         },
         data() {
             const statusOptions = [
@@ -87,6 +95,13 @@
                 gridApi: null,
                 componentKey: 0,
 
+                // Pagination
+                selectParam: {},
+                isDisabledLeft: true,
+                isDisabledRight: true,
+                currentPage: 0,
+                pages: [""],
+
                 // Column Definitions: Defines the columns to be displayed.
                 colDefs: [
                     { field: "userid", headerName: this.$t('user.userid') },
@@ -105,12 +120,13 @@
                         cellRendererParams: {
                             rowClickEdit: this.rowClickEdit,
                             rowClickRemove: this.rowClickRemove,
+                            userBlock: this.userBlock,
                         },
                     },
                 ],
                 components: {
                     actionRenderer: ActionRenderer,
-                }
+                },
             }
         },
         methods: {
@@ -170,25 +186,62 @@
                 }
                 this.roleValue = this.roleOptions[0];
             },
-            userSelect() {
-                const vm = this;
+            selectRight() {
+                let vm = this;
+                vm.currentPage++;
+                vm.putUserSelect(vm.selectParam.next);
+                vm.pages[vm.currentPage] = vm.selectParam.next;
+            },
+            selectLeft() {
+                let vm = this;
+                if (vm.currentPage > 0) {
+                    vm.currentPage--;
+                }
+                vm.putUserSelect(vm.pages[vm.currentPage]);
+            },
+            putUserSelect(current) {
+                let vm = this;
+                let dataPut = {}
+
+                if (current != "") {
+                    dataPut.current = current;
+                } else {
+                    dataPut.current = "";
+                }
+                dataPut.pagesize = 100;
+
                 vm.tableLoading = true;
                 $.ajax({
                     url: "/api/v1/admin/user/select?" + Math.random(),
-                    type: "GET",
+                    type: "PUT",
                     dataType: "json",
+                    data: JSON.stringify(dataPut),
                     success: function (data) {
                         let dataNormal = [];
-                        if (data != null) {
-                            data.forEach(function(item, i) {
+                        if (data.data != null) {
+                            data.data.forEach(function(item, i) {
                                 dataNormal[i] = item;
                                 dataNormal[i].logintime = moment(item.logintime).format("DD.MM.YYYY HH:mm:ss");
                             });
                         }
                         
                         vm.tableData = dataNormal;
+
+                        vm.selectParam.current = data.current;
+                        vm.selectParam.next = data.next;
+
+                        if (data.next != "" && data.next != undefined ) {
+                            vm.isDisabledRight = false;
+                        } else {
+                            vm.isDisabledRight = true;
+                        }
+                        if (data.current != "" && data.current != undefined) {
+                            vm.isDisabledLeft = false;
+                        } else {
+                            vm.isDisabledLeft = true;
+                        }
+
                         vm.tableLoading = false;
-                        window.onresize = () => { vm.wrapperSize = document.documentElement.clientHeight - 110 };
                         vm.componentKey += 1; // Run the component DOM interporeing for the correct calculation of scrolling
                         return true;
                     }
@@ -217,7 +270,7 @@
                     statusCode: {
                         200: function() {
                             vm.$vaToast.init({ message: vm.$t('message.message01'), color: 'primary' });
-                            vm.userSelect();
+                            vm.putUserSelect();
                             vm.showModal01 = false;
                             return true;
                         },
@@ -249,7 +302,7 @@
                     statusCode: {
                         200: function() {
                             vm.$vaToast.init({ message: vm.$t('user.message01'), color: 'primary' });
-                            vm.userSelect();
+                            vm.putUserSelect();
                             vm.showModal03 = false;
                             return true;
                         },
@@ -290,7 +343,7 @@
                     statusCode: {
                         200: function() {
                             vm.$vaToast.init({ message: vm.$t('user.message05'), color: 'primary' });
-                            vm.userSelect();
+                            vm.putUserSelect();
                             vm.showModal02 = false;
                             return true;
                         },
@@ -303,7 +356,7 @@
                 });
             },
             async userInfo() {
-                const vm = this;
+                let vm = this;
                 await $.ajax({
                     url: "/api/v1/userinfo?" + Math.random(),
                     type: "GET",
@@ -319,7 +372,7 @@
                         return true;
                     }
                 });
-                this.userSelect();
+                this.putUserSelect();
             },
             onGridReady(params) {
                 this.gridApi = params.api;
@@ -338,12 +391,8 @@
         beforeUnmount() {
             window.removeEventListener('resize', this.handleResize);
         },
-        created() {
-            this.userInfo();
-            window.onresize = () => { this.wrapperSize = document.documentElement.clientHeight - 110 };
-        },
         computed: {
-            ...mapState(['locale'])
+            ...mapState(['locale', 'mode'])
         },
         watch: {
             locale(newValue, oldValue) {
@@ -367,6 +416,7 @@
                             cellRendererParams: {
                                 rowClickEdit: this.rowClickEdit,
                                 rowClickRemove: this.rowClickRemove,
+                                userBlock: this.userBlock,
                             },
                         },
                     ];

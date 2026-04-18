@@ -6,13 +6,21 @@
         </va-breadcrumbs>
     </div>
 
-    <div class="row layout va-gutter-4 md12 justify-end">
-        <va-button icon="add" v-bind:disabled="userBlock" v-on:click="buttonClickNew" class="mr-3" />
+    <div class="row layout va-gutter-3">
+        <div class="flex layout va-gutter-3 md6" align="left">
+            <va-button icon="chevron_left" v-on:click="selectLeft()" v-bind:disabled="isDisabledLeft" class="mr-2 ml-1" />
+            <va-button disabled>{{ currentPage + 1 }}</va-button>
+            <va-button icon="chevron_right" v-on:click="selectRight()" v-bind:disabled="isDisabledRight"  class="ml-2" />
+        </div>
+        <div class="flex layout va-gutter-3 md6" align="right">
+            <va-button icon="refresh" v-on:click="putSpaceSelect(pages[currentPage])" class="ml-2 mr-1" />
+            <va-button icon="add" v-bind:disabled="userBlock" v-on:click="buttonClickNew" class="ml-2 mr-1" />
+        </div>
     </div>
     
     <div class="layout va-gutter-4 md12">
         <va-inner-loading :loading="tableLoading">
-            <ag-grid-vue :key="componentKey" :rowData="tableData" :columnDefs="colDefs" domLayout="autoHeight" :components="components" @grid-ready="onGridReady" style="height: 100%; width: 100%"></ag-grid-vue>
+            <ag-grid-vue :key="componentKey" :rowData="tableData" :columnDefs="colDefs" domLayout="autoHeight" :components="components" @grid-ready="onGridReady" style="height: 100%; width: 100%" :enableCellTextSelection="true" :ensureDomOrder="true"></ag-grid-vue>
         </va-inner-loading>
     </div>
     
@@ -64,6 +72,13 @@
                 gridApi: null,
                 componentKey: 0,
 
+                // Pagination
+                selectParam: {},
+                isDisabledLeft: true,
+                isDisabledRight: true,
+                currentPage: 0,
+                pages: [""],
+
                 // Column Definitions: Defines the columns to be displayed.
                 colDefs: [
                     { field: "id", headerName: this.$t('module.id') },
@@ -77,6 +92,7 @@
                         cellRendererParams: {
                             rowClickEdit: this.rowClickEdit,
                             rowClickRemove: this.rowClickRemove,
+                            userBlock: this.userBlock,
                         },
                     },
                 ],
@@ -105,18 +121,41 @@
                 this.statusValue = this.statusOptions[0];
                 this.showModal02 = true;
             },
-            spaceSelect() {
-                const vm = this;
+            putSpaceSelect(current) {
+                let vm = this;
+                let dataPut = {}
+
+                if (current != "") {
+                    dataPut.current = current;
+                } else {
+                    dataPut.current = "";
+                }
+                dataPut.pagesize = 100;
+
                 vm.tableLoading = true;
                 $.ajax({
                     url: "/api/v1/admin/space/select?" + Math.random(),
-                    type: "GET",
+                    type: "PUT",
                     dataType: "json",
+                    data: JSON.stringify(dataPut),
                     success: function (data) {
-                        if (data == null) {
-                            data = [];
+                        if (data.data == null) {
+                            data.data = [];
                         }
-                        vm.tableData = data;
+                        vm.tableData = data.data;
+                        vm.selectParam.current = data.current;
+                        vm.selectParam.next = data.next;
+
+                        if (data.next != "" && data.next != undefined ) {
+                            vm.isDisabledRight = false;
+                        } else {
+                            vm.isDisabledRight = true;
+                        }
+                        if (data.current != "" && data.current != undefined) {
+                            vm.isDisabledLeft = false;
+                        } else {
+                            vm.isDisabledLeft = true;
+                        }
                         vm.tableLoading = false;
                         return true;
                     }
@@ -137,7 +176,7 @@
                     statusCode: {
                         200: function() {
                             vm.$vaToast.init({ message: vm.$t('message.message01'), color: 'primary' });
-                            vm.spaceSelect();
+                            vm.putSpaceSelect();
                             vm.showModal01 = false;
                             return true;
                         },
@@ -167,7 +206,7 @@
                     statusCode: {
                         200: function() {
                             vm.$vaToast.init({ message: vm.$t('space.message05'), color: 'primary' });
-                            vm.spaceSelect();
+                            vm.putSpaceSelect();
                             vm.showModal03 = false;
                             return true;
                         },
@@ -178,6 +217,19 @@
                         },
                     }
                 });
+            },
+            selectRight() {
+                let vm = this;
+                vm.currentPage++;
+                vm.putSpaceSelect(vm.selectParam.next);
+                vm.pages[vm.currentPage] = vm.selectParam.next;
+            },
+            selectLeft() {
+                let vm = this;
+                if (vm.currentPage > 0) {
+                    vm.currentPage--;
+                }
+                vm.putSpaceSelect(vm.pages[vm.currentPage]);
             },
             putSpaceCreate() {
                 let vm = this;
@@ -193,13 +245,13 @@
                     data: JSON.stringify(dataPut),
                     statusCode: {
                         200: function() {
-                            vm.$vaToast.init({ message: vm.$t('space.message06'), color: 'primary' });
-                            vm.spaceSelect();
+                            vm.$vaToast.init({ message: vm.$t('space.message07'), color: 'primary' });
+                            vm.putSpaceSelect();
                             vm.showModal02 = false;
                             return;
                         },
                         500: function() {
-                            vm.$vaToast.init({ message: vm.$t('space.message07'), color: 'danger' });
+                            vm.$vaToast.init({ message: vm.$t('space.message08'), color: 'danger' });
                             vm.showModal02 = true;
                             return;
                         },
@@ -207,7 +259,7 @@
                 });
             },
             async userInfo() {
-                const vm = this;
+                let vm = this;
                 await $.ajax({
                     url: "/api/v1/userinfo?" + Math.random(),
                     type: "GET",
@@ -222,7 +274,25 @@
                         return true;
                     }
                 });
-                this.spaceSelect();
+
+                this.colDefs = [
+                        { field: "id", headerName: this.$t('module.id') },
+                        { field: "description", headerName: this.$t('message.description') },
+                        { field: "status", headerName: this.$t('message.status') },
+                        { field: "userid", headerName: this.$t('user.userid') },
+                        { 
+                            field: "action",
+                            headerName: this.$t('message.action'),
+                            cellRenderer: 'actionRenderer',
+                            cellRendererParams: {
+                                rowClickEdit: this.rowClickEdit,
+                                rowClickRemove: this.rowClickRemove,
+                                userBlock: this.userBlock,
+                            },
+                        },
+                    ];
+
+                this.putSpaceSelect();
             },
             onGridReady(params) {
                 this.gridApi = params.api;
@@ -261,6 +331,7 @@
                             cellRendererParams: {
                                 rowClickEdit: this.rowClickEdit,
                                 rowClickRemove: this.rowClickRemove,
+                                userBlock: this.userBlock,
                             },
                         },
                     ];

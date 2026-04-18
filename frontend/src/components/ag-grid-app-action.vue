@@ -1,7 +1,7 @@
 <template>
     <div>
-        <va-button preset="plain" icon="edit" v-bind:disabled="userBlock" v-on:click="rowClickEdit(params.node.rowIndex)" />
-        <va-button preset="plain" icon="delete" v-bind:disabled="userBlock" v-on:click="rowClickRemove(params.node.rowIndex)" />
+        <va-button preset="plain" icon="edit" v-bind:disabled="params.userBlock" v-on:click="rowClickEdit(params.node.rowIndex)" />
+        <va-button preset="plain" icon="delete" v-bind:disabled="params.userBlock" v-on:click="rowClickRemove(params.node.rowIndex)" />
     </div>
 </template>
 

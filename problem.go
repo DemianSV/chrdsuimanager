@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
@@ -134,6 +135,8 @@ func getProblemCount(w http.ResponseWriter, r *http.Request) {
 }
 
 func getProblemSelect(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
 	type ResponseProblemT struct {
 		ModuleID       string `json:"moduleid"`
 		SpaceID        string `json:"spaceid"`
@@ -168,6 +171,9 @@ func getProblemSelect(w http.ResponseWriter, r *http.Request) {
 					var spaceID string
 					err := scanner.Scan(&spaceID)
 					if err != nil {
+						duration := time.Since(start).Seconds()
+						httpDuration.WithLabelValues("/problem/select", "500", "GET", "getProblemSelect").Set(duration)
+
 						log.Print(err)
 						w.WriteHeader(http.StatusInternalServerError)
 						return
@@ -186,9 +192,15 @@ func getProblemSelect(w http.ResponseWriter, r *http.Request) {
 				} else {
 					responseProblemJSON, err := json.Marshal(responseProblemA)
 					if err != nil {
+						duration := time.Since(start).Seconds()
+						httpDuration.WithLabelValues("/problem/select", "500", "GET", "getProblemSelect").Set(duration)
+
 						log.Print("JSON MARSHAL ERROR (" + err.Error() + ")!")
 						w.WriteHeader(http.StatusInternalServerError)
 					} else {
+						duration := time.Since(start).Seconds()
+						httpDuration.WithLabelValues("/problem/select", "200", "GET", "getProblemSelect").Set(duration)
+
 						w.Header().Set("Content-Type", "application/json")
 						w.Write(responseProblemJSON)
 						return
@@ -201,6 +213,9 @@ func getProblemSelect(w http.ResponseWriter, r *http.Request) {
 					var spaceID string
 					err := scanner.Scan(&spaceID)
 					if err != nil {
+						duration := time.Since(start).Seconds()
+						httpDuration.WithLabelValues("/problem/select", "500", "GET", "getProblemSelect").Set(duration)
+
 						log.Print(err)
 						w.WriteHeader(http.StatusInternalServerError)
 						return
@@ -219,9 +234,15 @@ func getProblemSelect(w http.ResponseWriter, r *http.Request) {
 				} else {
 					responseProblemJSON, err := json.Marshal(responseProblemA)
 					if err != nil {
+						duration := time.Since(start).Seconds()
+						httpDuration.WithLabelValues("/problem/select", "500", "GET", "getProblemSelect").Set(duration)
+
 						log.Print("JSON MARSHAL ERROR (" + err.Error() + ")!")
 						w.WriteHeader(http.StatusInternalServerError)
 					} else {
+						duration := time.Since(start).Seconds()
+						httpDuration.WithLabelValues("/problem/select", "200", "GET", "getProblemSelect").Set(duration)
+
 						w.Header().Set("Content-Type", "application/json")
 						w.Write(responseProblemJSON)
 						return
@@ -240,6 +261,9 @@ func getProblemSelect(w http.ResponseWriter, r *http.Request) {
 
 				err := scanner.Scan(&spaceID, &moduleID, &metric, &eventTime, &eventTimeStart, &status, &value)
 				if err != nil {
+					duration := time.Since(start).Seconds()
+					httpDuration.WithLabelValues("/problem/select", "500", "GET", "getProblemSelect").Set(duration)
+
 					log.Print(err)
 					w.WriteHeader(http.StatusInternalServerError)
 					return
@@ -278,24 +302,39 @@ func getProblemSelect(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			if err := scanner.Err(); err != nil {
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/problem/select", "500", "GET", "getProblemSelect").Set(duration)
+
 				log.Print(err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 			responseProblemJSON, err := json.Marshal(responseProblemA)
 			if err != nil {
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/problem/select", "500", "GET", "getProblemSelect").Set(duration)
+
 				log.Print("JSON MARSHAL ERROR (" + err.Error() + ")!")
 				w.WriteHeader(http.StatusInternalServerError)
 			} else {
+				duration := time.Since(start).Seconds()
+				httpDuration.WithLabelValues("/problem/select", "200", "GET", "getProblemSelect").Set(duration)
+
 				w.Header().Set("Content-Type", "application/json")
 				w.Write(responseProblemJSON)
 				return
 			}
 		} else {
+			duration := time.Since(start).Seconds()
+			httpDuration.WithLabelValues("/problem/select", "500", "GET", "getProblemSelect").Set(duration)
+
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 	} else {
+		duration := time.Since(start).Seconds()
+		httpDuration.WithLabelValues("/problem/select", "403", "GET", "getProblemSelect").Set(duration)
+
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}

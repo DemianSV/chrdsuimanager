@@ -90,8 +90,6 @@ Configuration can be done in two ways:
 **CHRDS_UIMANAGER_MODULEID**: Reserved module ID for UIManager,  
 **CHRDS_UIMANAGER_SPACEID**: Reserved space ID for UIManager,  
 **CHRDS_UIMANAGER_DATAMANAGERURL**: Array of DataManager API URLs.  
-**CHRDS_UIMANAGER_DATAMANAGERTIMEOUT**: Timeout for DataManager API requests.  
-**CHRDS_UIMANAGER_AUDITCHECK**: Mandatory audit availability check during authorization (true).  
 
 **CHRDS_HTTP_HOST**: Address for incoming HTTP server connections (API, Swagger),  
 **CHRDS_HTTP_PORT**: Port for incoming HTTP server connections,  
